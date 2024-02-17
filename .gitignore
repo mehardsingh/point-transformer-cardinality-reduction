@@ -1,2 +1,2 @@
-ModelNet40/
-*misc
+data/modelnet40/samples/
+src/misc
