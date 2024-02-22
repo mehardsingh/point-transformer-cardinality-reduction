@@ -42,6 +42,8 @@ class STN3d(nn.Module):
             batchsize, 1)
         if x.is_cuda:
             iden = iden.cuda()
+        elif str(x.device) == "mps:0":
+            iden = iden.to("mps:0")
         x = x + iden
         x = x.view(-1, 3, 3)
         return x
@@ -82,6 +84,8 @@ class STNkd(nn.Module):
             batchsize, 1)
         if x.is_cuda:
             iden = iden.cuda()
+        elif str(x.device) == "mps:0":
+            iden = iden.to("mps:0")
         x = x + iden
         x = x.view(-1, self.k, self.k)
         return x
@@ -140,5 +144,7 @@ def feature_transform_reguliarzer(trans):
     I = torch.eye(d)[None, :, :]
     if trans.is_cuda:
         I = I.cuda()
+    elif str(trans.device) == "mps:0":
+        I = I.to("mps:0")
     loss = torch.mean(torch.norm(torch.bmm(trans, trans.transpose(2, 1)) - I, dim=(1, 2)))
     return loss
