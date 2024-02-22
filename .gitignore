@@ -1,2 +1,7 @@
-data/modelnet40/samples/
+data/modelnet40/
+outputs/**/*.pt
+**/__pycache__
+__pycache__
+*.pyc
+*.off
 src/misc
