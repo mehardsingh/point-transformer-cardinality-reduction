@@ -126,10 +126,15 @@ def main():
     num_epochs = 3
     lr = 1e-3
     wd = 1e-4
-    device = "mps"
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     eval_every = 20
     save_every = 20
+
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
 
     train(num_epochs, lr, wd, device, eval_every, save_every)
 
