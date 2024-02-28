@@ -36,7 +36,6 @@ def get_dataloaders(val=True):
 
 def preprocess_batch(batch,device):
     batch_pointclouds = batch["pointcloud"].float()
-    # batch_pointclouds = torch.transpose(batch_pointclouds, 1, 2)
     batch_labels = batch["category"]
     
     return batch_pointclouds.to(device), batch_labels.to(device)
@@ -51,13 +50,6 @@ def compute_metrics(pred, labels):
     f1 = f1_score(labels, preds, average="macro")
 
     return accuracy, precision, recall, f1
-
-# def save_function(step, model, progress_dict, save_model=False, save_dir:str="outputs/point_transformer"):
-#     with open(os.path.join(save_dir,"progress_dict.json"), "w") as f:
-#         json.dump(progress_dict, f, indent=4)
-
-#     if save_model:
-#         torch.save(model.state_dict(), os.path.join(save_dir), "model_step{step}.pt")
     
 def do_eval(eval_dl, model, loss_fn, device): 
     model.eval()
@@ -89,10 +81,10 @@ def train(num_epochs:int, lr:float, wd:float, device, eval_every:int, save_every
     loss_fn = get_loss()
     train_dl, val_dl, test_dl = get_dataloaders()
 
-    # Initialize dataframe
+    # Initialize progress csv
     column_names = ["step", "T_Loss", "T_Accuracy", "T_Precision", "T_Recall", "T_F1", "V_Loss", "V_Accuracy", "V_Precision", "V_Recall", "V_F1"]
     with open(os.path.join(save_dir, "progress.csv"), mode="w") as f:
-        f.write(f"{",".join(column_names)}\n")
+        f.write(f"{','.join(column_names)}\n")
 
     # loop: 
     model.train()
@@ -113,7 +105,7 @@ def train(num_epochs:int, lr:float, wd:float, device, eval_every:int, save_every
             train_metrics = [loss.item(), accuracy, precision, recall, f1]
             val_metrics = [np.nan for _ in range(len(train_metrics))]
 
-            if not steps == 0 and steps % eval_every == 0: 
+            if steps % eval_every == 0: 
                 # run eval on val set
                 if val_dl is not None:
                     pbar.set_description(f'Epoch {epoch+1}/{num_epochs} progress [validating]')
@@ -124,20 +116,20 @@ def train(num_epochs:int, lr:float, wd:float, device, eval_every:int, save_every
             with open(os.path.join(save_dir, "progress.csv"), mode="a") as f:
                 row_metrics = [steps] + train_metrics + val_metrics
                 row_metrics = [str(i) for i in row_metrics]
-                f.write(f"{",".join(row_metrics)}\n")
+                f.write(f"{','.join(row_metrics)}\n")
 
             pbar.set_description(f'Epoch {epoch+1}/{num_epochs} progress [acc={accuracy}]')
             steps += 1 
 
         if epoch % save_every == 0: 
-            torch.save(model.state_dict(), os.path.join(save_dir), "model_step{steps}.pt")
+            torch.save(model.state_dict(), os.path.join(save_dir, f"model_step{steps}.pt"))
 
 
 def main(): 
-    num_epochs = 3
+    num_epochs = 10
     lr = 1e-3
     wd = 1e-4
-    eval_every = 2
+    eval_every = 100
     save_every = 1
 
     if torch.cuda.is_available():
