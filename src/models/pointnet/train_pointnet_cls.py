@@ -8,6 +8,7 @@ from tqdm import tqdm
 import json
 import pdb
 import warnings
+import os
 
 import sys
 sys.path.append("src/dataset")
@@ -72,13 +73,16 @@ def do_eval(eval_dl, model, loss_fn, device):
 
         return losses, accuracy, precision, recall, f1
 
-def train(num_epochs, lr, wd, device, eval_every, save_every): 
+def train(num_epochs:int, lr:float, wd:float, device, eval_every:int, save_every:int, save_dir:os.PathLike='outputs/pointnet'): 
     model = get_model(normal_channel=False).float().to(device)
     loss_fn = get_loss()
 
     train_dl, val_dl, test_dl = get_dataloaders()
 
-    progess_dict = dict()
+    # Initialize progress csv
+    column_names = ["step", "T_Loss", "T_Accuracy", "T_Precision", "T_Recall", "T_F1", "V_Loss", "V_Accuracy", "V_Precision", "V_Recall", "V_F1"]
+    with open(os.path.join(save_dir, "progress.csv"), mode="w") as f:
+        f.write(f"{','.join(column_names)}\n")
 
     # loop: 
     model.train()
@@ -88,7 +92,6 @@ def train(num_epochs, lr, wd, device, eval_every, save_every):
 
         pbar = tqdm(train_dl, desc=f"Epoch {epoch+1}/{num_epochs} progress")
         for batch in pbar: 
-            progess_dict[f"step_{steps+1}"] = dict()
             optimizer.zero_grad()
             pointclouds, labels = preprocess_batch(batch, device)
             preds, trans_feat = model(pointclouds)
@@ -98,36 +101,36 @@ def train(num_epochs, lr, wd, device, eval_every, save_every):
             optimizer.step()
 
             accuracy, precision, recall, f1 = compute_metrics(preds, labels)
-            progess_dict[f"step_{steps+1}"]["train"] = {"loss": loss.item(), "accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1}
+            train_metrics = [loss.item(), accuracy, precision, recall, f1]
+            val_metrics = [np.nan for _ in range(len(train_metrics))]
 
 
-            if not steps == 0 and steps % eval_every == 0: 
+            if steps % eval_every == 0: 
                 # run eval on val set
                 if val_dl is not None:
                     pbar.set_description(f'Epoch {epoch+1}/{num_epochs} progress [validating]')
-
                     losses, accuracy, precision, recall, f1 = do_eval(val_dl, model, loss_fn, device)
-                    progess_dict[f"step_{steps+1}"]["val"] = {"loss": losses, "accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1}
+                    val_metrics = [losses, accuracy, precision, recall, f1]                    
                     model.train()
-            
-            if steps % save_every == 0:
-                #save progress_dict to a file
-                with open("progress_dict.json", "w") as f:
-                    json.dump(progess_dict, f, indent=4)
-            pbar.set_description(f'Epoch {epoch+1}/{num_epochs} progress [acc={accuracy}]')
 
+            with open(os.path.join(save_dir, "progress.csv"), mode="a") as f:
+                row_metrics = [steps] + train_metrics + val_metrics
+                row_metrics = [str(i) for i in row_metrics]
+                f.write(f"{','.join(row_metrics)}\n")
+
+            pbar.set_description(f'Epoch {epoch+1}/{num_epochs} progress [acc={accuracy}]')
             steps += 1 
 
         # save after every epoch
-        with open("progress_dict.json", "w") as f:
-            json.dump(progess_dict, f, indent=4)
+        if epoch % save_every == 0: 
+            torch.save(model.state_dict(), os.path.join(save_dir, f"model_step{steps}.pt"))
 
 def main(): 
     num_epochs = 3
     lr = 1e-3
     wd = 1e-4
     eval_every = 20
-    save_every = 20
+    save_every = 2
 
     if torch.cuda.is_available():
         device = "cuda"
