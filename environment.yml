@@ -1,0 +1,16 @@
+name: pt
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python >=3.11
+  - numpy >=1.23.5
+  - pytorch >= 2.2
+  - torchvision 
+  - numpy 
+  - matplotlib 
+  - tqdm 
+  - pandas >= 2.0
+  - scikit-learn >= 1.4
+  - jupyter >= 1.0
+  - jupyterlab >=4.1
