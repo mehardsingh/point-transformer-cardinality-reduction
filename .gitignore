@@ -5,3 +5,4 @@ __pycache__
 *.pyc
 *.off
 src/misc
+.ipynb_checkpoints
