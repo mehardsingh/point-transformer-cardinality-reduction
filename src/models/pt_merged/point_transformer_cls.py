@@ -9,24 +9,6 @@ sys.path.append("src/merge_utils")
 from merge_fb import bipartite_soft_matching
 
 def merge(points, npoint):
-    # B, N, C = xyz.shape
-    # S = npoint 
-    
-    # fps_idx = farthest_point_sample(xyz, npoint) # [B, npoint]
-
-    # new_xyz = index_points(xyz, fps_idx) 
-    # new_points = index_points(points, fps_idx)
-
-    # dists = square_distance(new_xyz, xyz)  # B x npoint x N
-    # idx = dists.argsort()[:, :, :nsample]  # B x npoint x K
-
-    # grouped_points = index_points(points, idx) # B x npoint x K x C
-    # grouped_points_norm = grouped_points - new_points.view(B, S, 1, -1)  # maintains shift invariance 
-    # # append global information
-    # new_points = torch.cat([grouped_points_norm, new_points.view(B, S, 1, -1).repeat(1, 1, nsample, 1)], dim=-1)
-    # # new_points
-    # #  is B x npoint x K x 2*C 
-
     r = points.shape[1] - npoint
     pmerger, punmerger = bipartite_soft_matching(points, r)
     merged = pmerger(points)
