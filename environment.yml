@@ -14,3 +14,4 @@ dependencies:
   - scikit-learn >= 1.4
   - jupyter >= 1.0
   - jupyterlab >=4.1
+  - opencv >= 4.9
