@@ -5,12 +5,12 @@ import sys
 sys.path.append("src/train")
 from config import Config
 
-device = "cpu"
+device = "mps"
 
 x = torch.rand(32, 1024, 3).to(device)
 
 config = Config(
-    tome=True, 
+    tome=False, 
     num_points=1024, 
     num_class=10, 
     input_dim=3, 

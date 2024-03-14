@@ -121,6 +121,7 @@ def train(config):
 
         pbar.set_description("Epoch {}/{} progress [evaluating]".format(epoch+1, config["num_epochs"]))
         eval_loss, eval_accuracy, eval_precision, eval_recall, eval_f1 = do_eval(eval_dl, model, loss_fn, config["device"])
+        print("Eval Loss: {:.2f}, Eval Acc: {:.2f}, Eval Precision: {:.2f}, Eval Recall: {:.2f}, Eval F1: {:.2f}".format(eval_loss, eval_accuracy, eval_precision, eval_recall, eval_f1))
         eval_metrics = [eval_loss, eval_accuracy, eval_precision, eval_recall, eval_f1]                    
         model.train()
 
