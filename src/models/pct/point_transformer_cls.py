@@ -2,47 +2,13 @@
 
 import torch
 import torch.nn as nn
-from pointnet_util import farthest_point_sample, index_points, square_distance
+from fps_knn_pct import FPS_KNN_PCT
+import sys
 
-def sample_and_group(npoint, nsample, xyz, points):
-    B, N, C = xyz.shape
-    S = npoint 
-    
-    fps_idx = farthest_point_sample(xyz, npoint) # [B, npoint]
+sys.path.append("src/tome")
+from tome import TOME
 
-    new_xyz = index_points(xyz, fps_idx) 
-    new_points = index_points(points, fps_idx)
-
-    dists = square_distance(new_xyz, xyz)  # B x npoint x N
-    idx = dists.argsort()[:, :, :nsample]  # B x npoint x K
-
-    grouped_points = index_points(points, idx)
-    grouped_points_norm = grouped_points - new_points.view(B, S, 1, -1)
-    new_points = torch.cat([grouped_points_norm, new_points.view(B, S, 1, -1).repeat(1, 1, nsample, 1)], dim=-1)
-    return new_xyz, new_points
-
-
-class Local_op(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=False)
-        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm1d(out_channels)
-        self.bn2 = nn.BatchNorm1d(out_channels)
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        b, n, s, d = x.size()  # torch.Size([32, 512, 32, 6]) 
-        x = x.permute(0, 1, 3, 2)
-        x = x.reshape(-1, d, s)
-        batch_size, _, N = x.size()
-        x = self.relu(self.bn1(self.conv1(x))) # B, D, N
-        x = self.relu(self.bn2(self.conv2(x))) # B, D, N
-        x = torch.max(x, 2)[0]
-        x = x.view(batch_size, -1)
-        x = x.reshape(b, n, -1).permute(0, 2, 1)
-        return x
-
+# default initial hidden dim = 64
 
 class SA_Layer(nn.Module):
     def __init__(self, channels):
@@ -68,7 +34,6 @@ class SA_Layer(nn.Module):
         x = x + x_r
         return x
     
-
 class StackedAttention(nn.Module):
     def __init__(self, channels=256):
         super().__init__()
@@ -105,32 +70,40 @@ class StackedAttention(nn.Module):
 
         return x
 
-
-class PointTransformerCls(nn.Module):
+class PCT(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         output_channels = cfg.num_class
         d_points = cfg.input_dim
-        self.conv1 = nn.Conv1d(d_points, 64, kernel_size=1, bias=False)
-        self.conv2 = nn.Conv1d(64, 64, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(64)
-        self.gather_local_0 = Local_op(in_channels=128, out_channels=128)
-        self.gather_local_1 = Local_op(in_channels=256, out_channels=256)
+        self.conv1 = nn.Conv1d(d_points, cfg.init_hidden_dim, kernel_size=1, bias=False)
+        self.conv2 = nn.Conv1d(cfg.init_hidden_dim, cfg.init_hidden_dim, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm1d(cfg.init_hidden_dim)
+        self.bn2 = nn.BatchNorm1d(cfg.init_hidden_dim)
+        
+        if cfg.tome:
+            self.downsample1 = TOME(npoint=cfg.num_points//2, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
+            self.downsample2 = TOME(npoint=cfg.num_points//4, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
+        else:
+            self.downsample1 = FPS_KNN_PCT(npoint=cfg.num_points//2, nsample=cfg.k, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
+            self.downsample2 = FPS_KNN_PCT(npoint=cfg.num_points//4, nsample=cfg.k, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
+
         self.pt_last = StackedAttention()
 
         self.relu = nn.ReLU()
-        self.conv_fuse = nn.Sequential(nn.Conv1d(1280, 1024, kernel_size=1, bias=False),
-                                   nn.BatchNorm1d(1024),
+        
+        self.conv_fuse = nn.Sequential(nn.Conv1d(20*cfg.init_hidden_dim, 16*cfg.init_hidden_dim, kernel_size=1, bias=False),
+                                   nn.BatchNorm1d(16*cfg.init_hidden_dim),
                                    nn.LeakyReLU(negative_slope=0.2))
 
-        self.linear1 = nn.Linear(1024, 512, bias=False)
-        self.bn6 = nn.BatchNorm1d(512)
+        self.linear1 = nn.Linear(16*cfg.init_hidden_dim, 8*cfg.init_hidden_dim, bias=False)
+        self.bn6 = nn.BatchNorm1d(8*cfg.init_hidden_dim)
         self.dp1 = nn.Dropout(p=0.5)
-        self.linear2 = nn.Linear(512, 256)
-        self.bn7 = nn.BatchNorm1d(256)
+        self.linear2 = nn.Linear(8*cfg.init_hidden_dim, 4*cfg.init_hidden_dim)
+        self.bn7 = nn.BatchNorm1d(4*cfg.init_hidden_dim)
         self.dp2 = nn.Dropout(p=0.5)
-        self.linear3 = nn.Linear(256, output_channels)
+        self.linear3 = nn.Linear(4*cfg.init_hidden_dim, output_channels)
+
+        self.cfg = cfg
 
     def forward(self, x):
         """
@@ -141,13 +114,16 @@ class PointTransformerCls(nn.Module):
         batch_size, _, _ = x.size()
         x = self.relu(self.bn1(self.conv1(x))) # B, D, N
         x = self.relu(self.bn2(self.conv2(x))) # B, D, N
-        x = x.permute(0, 2, 1)
+        x = x.permute(0, 2, 1) # B, N, D
 
-        new_xyz, new_feature = sample_and_group(npoint=512, nsample=32, xyz=xyz, points=x)         
-        feature_0 = self.gather_local_0(new_feature)
-        feature = feature_0.permute(0, 2, 1)
-        new_xyz, new_feature = sample_and_group(npoint=256, nsample=32, xyz=new_xyz, points=feature) 
-        feature_1 = self.gather_local_1(new_feature)
+        if self.cfg.tome:
+            feature_0 = self.downsample1(x)
+            feature_1 = self.downsample2(feature_0)
+            feature_1 = feature_1.permute(0, 2, 1)
+        else:
+            new_xyz, feature_0 = self.downsample1(xyz, x)
+            new_xyz, feature_1 = self.downsample2(new_xyz, feature_0)
+            feature_1 = feature_1.permute(0, 2, 1)
         
         x = self.pt_last(feature_1)
         x = torch.cat([x, feature_1], dim=1)
@@ -163,15 +139,9 @@ class PointTransformerCls(nn.Module):
 
         return x
 
-class Config:
-    def __init__(self, num_class, input_dim):
-        self.num_class = num_class
-        self.input_dim = input_dim
-
-def get_model(num_class=40, input_dim=3):
-    return PointTransformerCls(Config(num_class=num_class, input_dim=input_dim))
+def get_model(cfg):
+    return PCT(cfg)
 
 def get_loss():
     return torch.nn.CrossEntropyLoss()
-
     

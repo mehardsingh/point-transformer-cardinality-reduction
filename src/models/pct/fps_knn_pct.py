@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from classic_downsample_utils import farthest_point_sample, index_points, square_distance
+from pointnet_util import farthest_point_sample, index_points, square_distance
 
 class Sample_Group(nn.Module):
     def __init__(self, npoint, nsample):
@@ -46,7 +46,7 @@ class Local_op(nn.Module):
         x = x.reshape(b, n, -1).permute(0, 2, 1)
         return x
     
-class FPS_KNN_Downsample(nn.Module):
+class FPS_KNN_PCT(nn.Module):
     def __init__(self, npoint, nsample, in_channels, out_channels):
         super().__init__()
         self.sample_and_group = Sample_Group(npoint, nsample)

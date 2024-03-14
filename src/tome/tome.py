@@ -19,19 +19,19 @@ class Merge(nn.Module):
 
         return merged, compressed
     
-class TOME_Downsample(nn.Module):
-    def __init__(self, npoint, nsample, in_channels, out_channels, compress=False):
+class TOME(nn.Module):
+    def __init__(self, npoint, in_channels, out_channels, compress=False):
         super().__init__()
         self.merge = Merge(npoint, compress=compress)
         self.conv = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=False)
         self.bn = nn.BatchNorm1d(out_channels)
         self.relu = nn.ReLU()
 
-    def forward(self, xyz, points):
+    def forward(self, points):
         merged, compressed = self.merge(points) # merged: B, N, in_channels
         merged = merged.permute(0, 2, 1) #  B, in_channels, N
 
         merged = self.relu(self.bn(self.conv(merged))) # B, out_channels, N
         merged = merged.permute(0, 2, 1) # B, N, out_channels
 
-        return None, merged
+        return merged
