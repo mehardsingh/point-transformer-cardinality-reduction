@@ -21,3 +21,4 @@ model = get_model(config).to(device)
 
 pred = model(x)
 print(pred.shape)
+print("parth was here")
