@@ -63,10 +63,14 @@ def bipartite_soft_matching(
             scores[..., :, 0] = -math.inf
 
         node_max, node_idx = scores.max(dim=-1)
-        edge_idx = node_max.argsort(dim=-1, descending=True)[..., None]
+        edge_idx = node_max.argsort(dim=-1, descending=True)[..., None] # gets the most similar edge from each pt in a to b
 
         unm_idx = edge_idx[..., r:, :]  # Unmerged Tokens
         src_idx = edge_idx[..., :r, :]  # Merged Tokens
+
+        # unm index will always be 0 when reducing by 50%
+        # src_tokens maintains all a and its most similar edge
+
         # dst_idx = node_idx[..., None].gather(dim=-2, index=src_idx)
         dst_idx = node_idx.gather(dim=-1, index=src_idx.squeeze(-1)).unsqueeze(-1)
 
