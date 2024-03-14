@@ -23,7 +23,7 @@ class Backbone(nn.Module):
             self.transformer1 = TransformerBlock(cfg.init_hidden_dim, 16*cfg.init_hidden_dim, cfg.k)
         else:
             # print(cfg.init_hidden_dim, 16*cfg.init_hidden_dim, cfg.k)
-            self.transformer1 = MyAttention2(cfg.init_hidden_dim, 16*cfg.init_hidden_dim, cfg.k)
+            self.transformer1 = MyAttention2(cfg.use_xyz, cfg.init_hidden_dim, 16*cfg.init_hidden_dim)
 
         self.transition_downs = nn.ModuleList()
         self.transformers = nn.ModuleList()
@@ -34,9 +34,9 @@ class Backbone(nn.Module):
                 self.transition_downs.append(FPS_KNN_PT(cfg.num_points // 4 ** (i + 1), cfg.k, channel // 2 + 3, channel))
                 self.transformers.append(TransformerBlock(channel, 16*cfg.init_hidden_dim, cfg.k))
             else:
-                self.transition_downs.append(TOME(cfg.num_points // 4 ** (i + 1), channel // 2, channel))
+                self.transition_downs.append(TOME(cfg.use_xyz, cfg.num_points // 4 ** (i + 1), channel // 2, channel))
                 # self.transformers.append(TOMETransformerBlock(channel, 16*cfg.init_hidden_dim, cfg.k))
-                self.transformers.append(MyAttention2(channel, 16*cfg.init_hidden_dim, cfg.k))
+                self.transformers.append(MyAttention2(cfg.use_xyz, channel, 16*cfg.init_hidden_dim))
         
         self.nblocks = nblocks
         self.cfg = cfg
@@ -57,7 +57,7 @@ class Backbone(nn.Module):
         else:
             points = self.transformer1(self.fc1(x))
             for i in range(self.nblocks):
-                points = self.transition_downs[i](points)
+                points, xyz, compressed_xyz = self.transition_downs[i](points, xyz)
                 points = self.transformers[i](points)
 
             return points

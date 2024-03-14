@@ -94,7 +94,7 @@ class MyAttention(nn.Module):
         return res
     
 class MyAttention2(nn.Module):
-    def __init__(self, d_points, d_model, k):
+    def __init__(self, use_xyz, d_points, d_model):
         super(MyAttention2, self).__init__()
         self.fc1 = nn.Linear(d_points, d_model)
         self.fc2 = nn.Linear(d_model, d_points)
@@ -109,6 +109,14 @@ class MyAttention2(nn.Module):
         self.w_ks = nn.Linear(d_model, d_model, bias=False)
         self.w_vs = nn.Linear(d_model, d_model, bias=False)
 
+        self.use_xyz = use_xyz
+        if use_xyz:
+            self.fc_delta = nn.Sequential(
+                nn.Linear(3, d_model),
+                nn.ReLU(),
+                nn.Linear(d_model, d_model)
+            )
+
     def forward(self, features):
         # No need for sorting when k = n, so we directly get knn_idx as indices 0 to n-1
         knn_idx = torch.arange(features.shape[1]).unsqueeze(0).repeat(features.shape[0], 1).unsqueeze(2)  # b x n x 1
@@ -118,6 +126,7 @@ class MyAttention2(nn.Module):
         x = self.fc1(features)
         q, k, v = self.w_qs(x), index_points(self.w_ks(x), knn_idx), index_points(self.w_vs(x), knn_idx)
 
+        
         # pos_enc = self.fc_delta(xyz[:, :, None] - knn_xyz)  # b x n x n x f
         
         attn = self.fc_gamma(q[:, :, None] - k)
