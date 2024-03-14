@@ -74,7 +74,7 @@ def do_eval(eval_dl, model, loss_fn, device):
         return losses, accuracy, precision, recall, f1
     
 
-def train(num_epochs:int, lr:float, wd:float, device, eval_every:int, save_every:int, save_dir:os.PathLike='outputs/point_transformer'): 
+def train(num_epochs:int, lr:float, wd:float, device, eval_every:int, save_every:int, save_dir:os.PathLike='outputs/point_transformer2'): 
     os.makedirs(save_dir, exist_ok=True)
 
     model = get_model().float().to(device)
@@ -105,7 +105,7 @@ def train(num_epochs:int, lr:float, wd:float, device, eval_every:int, save_every
             train_metrics = [loss.item(), accuracy, precision, recall, f1]
             val_metrics = [np.nan for _ in range(len(train_metrics))]
 
-            if steps % eval_every == 0: 
+            if (steps+1) % eval_every == 0: 
                 # run eval on val set
                 if val_dl is not None:
                     pbar.set_description(f'Epoch {epoch+1}/{num_epochs} progress [validating]')
@@ -121,7 +121,7 @@ def train(num_epochs:int, lr:float, wd:float, device, eval_every:int, save_every
             pbar.set_description(f'Epoch {epoch+1}/{num_epochs} progress [acc={accuracy}]')
             steps += 1 
 
-        if epoch % save_every == 0: 
+        if (epoch+1) % save_every == 0: 
             torch.save(model.state_dict(), os.path.join(save_dir, f"model_step{steps}.pt"))
 
 
@@ -138,6 +138,8 @@ def main():
         device = "mps"
     else:
         device = "cpu"
+
+    device = "cpu"
 
     train(num_epochs, lr, wd, device, eval_every, save_every)
 

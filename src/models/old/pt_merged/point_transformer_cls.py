@@ -3,24 +3,17 @@
 import torch
 import torch.nn as nn
 from pointnet_util import farthest_point_sample, index_points, square_distance
+import sys
 
-def sample_and_group(npoint, nsample, xyz, points):
-    B, N, C = xyz.shape
-    S = npoint 
-    
-    fps_idx = farthest_point_sample(xyz, npoint) # [B, npoint]
+sys.path.append("src/merge_utils")
+from merge_fb import bipartite_soft_matching
 
-    new_xyz = index_points(xyz, fps_idx) 
-    new_points = index_points(points, fps_idx)
-
-    dists = square_distance(new_xyz, xyz)  # B x npoint x N
-    idx = dists.argsort()[:, :, :nsample]  # B x npoint x K
-
-    grouped_points = index_points(points, idx)
-    grouped_points_norm = grouped_points - new_points.view(B, S, 1, -1)
-    new_points = torch.cat([grouped_points_norm, new_points.view(B, S, 1, -1).repeat(1, 1, nsample, 1)], dim=-1)
-    return new_xyz, new_points
-
+def merge(points, npoint):
+    r = points.shape[1] - npoint
+    pmerger, punmerger = bipartite_soft_matching(points, r)
+    merged = pmerger(points)
+    compressed = punmerger(merged)    
+    return merged, compressed
 
 class Local_op(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -32,15 +25,19 @@ class Local_op(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        b, n, s, d = x.size()  # torch.Size([32, 512, 32, 6]) 
-        x = x.permute(0, 1, 3, 2)
-        x = x.reshape(-1, d, s)
+        b, n, s, d = x.size()  # batch, npoint ,K ,  C 
+        x = x.permute(0, 1, 3, 2) # B x npoint, c , k
+        x = x.reshape(-1, d, s)  # (B x npoint) , C , K 
         batch_size, _, N = x.size()
+
+        # apply linear layer to each point 
         x = self.relu(self.bn1(self.conv1(x))) # B, D, N
         x = self.relu(self.bn2(self.conv2(x))) # B, D, N
+
+        # Take max over neighbors (why not avg?)
         x = torch.max(x, 2)[0]
         x = x.view(batch_size, -1)
-        x = x.reshape(b, n, -1).permute(0, 2, 1)
+        x = x.reshape(b, n, -1).permute(0, 2, 1) # B, n, OutChanels
         return x
 
 
@@ -97,8 +94,11 @@ class StackedAttention(nn.Module):
         x = self.relu(self.bn2(self.conv2(x)))
 
         x1 = self.sa1(x)
+        # our stuff 
         x2 = self.sa2(x1)
+        # our stuff 
         x3 = self.sa3(x2)
+        # our stuff 
         x4 = self.sa4(x3)
         
         x = torch.cat((x1, x2, x3, x4), dim=1)
@@ -115,8 +115,13 @@ class PointTransformerCls(nn.Module):
         self.conv2 = nn.Conv1d(64, 64, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(64)
-        self.gather_local_0 = Local_op(in_channels=128, out_channels=128)
-        self.gather_local_1 = Local_op(in_channels=256, out_channels=256)
+
+        self.conv3 = nn.Conv1d(64, 128, kernel_size=1, bias=False)
+        self.conv4 = nn.Conv1d(128, 256, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.bn4 = nn.BatchNorm1d(256)
+        self.relu = nn.ReLU()
+
         self.pt_last = StackedAttention()
 
         self.relu = nn.ReLU()
@@ -136,24 +141,47 @@ class PointTransformerCls(nn.Module):
         """
         In
         """
-        xyz = x[..., :3]
+
+        # ENCODE the point cloud into (BxNxD)
+        # print("===Encode===")
         x = x.permute(0, 2, 1)
         batch_size, _, _ = x.size()
         x = self.relu(self.bn1(self.conv1(x))) # B, D, N
         x = self.relu(self.bn2(self.conv2(x))) # B, D, N
-        x = x.permute(0, 2, 1)
-        new_xyz, new_feature = sample_and_group(npoint=512, nsample=32, xyz=xyz, points=x)         
-        feature_0 = self.gather_local_0(new_feature)
-        feature = feature_0.permute(0, 2, 1)
-        new_xyz, new_feature = sample_and_group(npoint=256, nsample=32, xyz=new_xyz, points=feature) 
-        feature_1 = self.gather_local_1(new_feature)
+        x = x.permute(0, 2, 1) # B, N, D
+        # print("x", x.shape)
+        # print()
+
+        # print("===Bipartite Soft Match===")
+        feature_0_merged, feature_0_compressed = merge(x, npoint=512)    
+        feature_0_merged = feature_0_merged.permute(0, 2, 1)  
+        feature_0_merged = self.relu(self.bn3(self.conv3(feature_0_merged)))
+        feature_0_merged = feature_0_merged.permute(0, 2, 1) 
+        # print(feature_0_merged.shape)
+        # print()
+
+        # print("===Bipartite Soft Match===")
+        feature_1_merged, feature_1_compressed = merge(feature_0_merged, npoint=256)  
+        feature_1_merged = feature_1_merged.permute(0, 2, 1)  
+        feature_1_merged = self.relu(self.bn4(self.conv4(feature_1_merged)))
+        # print(feature_1_merged.shape)
+
+        # print()
         
-        x = self.pt_last(feature_1)
-        x = torch.cat([x, feature_1], dim=1)
+        # print("===Stacked Attention===")
+        x = self.pt_last(feature_1_merged)
+        x = torch.cat([x, feature_1_merged], dim=1)
         x = self.conv_fuse(x)
+        # print(x.shape)
+        # print()
+
+        # print("===Maxpool===")
         x = torch.max(x, 2)[0]
         x = x.view(batch_size, -1)
+        # print(x.shape)
+        # print()
 
+        # print("===CLS Head===")
         x = self.relu(self.bn6(self.linear1(x)))
         x = self.dp1(x)
         x = self.relu(self.bn7(self.linear2(x)))

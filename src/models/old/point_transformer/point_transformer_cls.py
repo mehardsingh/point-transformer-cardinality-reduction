@@ -2,8 +2,7 @@
 
 import torch
 import torch.nn as nn
-from ..point_transformer.pointnet_util import farthest_point_sample, index_points, square_distance
-from merge_utils import bipartite_soft_matching
+from pointnet_util import farthest_point_sample, index_points, square_distance
 
 def sample_and_group(npoint, nsample, xyz, points):
     B, N, C = xyz.shape
@@ -17,12 +16,9 @@ def sample_and_group(npoint, nsample, xyz, points):
     dists = square_distance(new_xyz, xyz)  # B x npoint x N
     idx = dists.argsort()[:, :, :nsample]  # B x npoint x K
 
-    grouped_points = index_points(points, idx) # B x npoint x K x C
-    grouped_points_norm = grouped_points - new_points.view(B, S, 1, -1)  # maintains shift invariance 
-    # append global information
+    grouped_points = index_points(points, idx)
+    grouped_points_norm = grouped_points - new_points.view(B, S, 1, -1)
     new_points = torch.cat([grouped_points_norm, new_points.view(B, S, 1, -1).repeat(1, 1, nsample, 1)], dim=-1)
-    # new_points
-    #  is B x npoint x K x 2*C 
     return new_xyz, new_points
 
 
@@ -36,19 +32,15 @@ class Local_op(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        b, n, s, d = x.size()  # batch, npoint ,K ,  C 
-        x = x.permute(0, 1, 3, 2) # B x npoint, c , k
-        x = x.reshape(-1, d, s)  # (B x npoint) , C , K 
+        b, n, s, d = x.size()  # torch.Size([32, 512, 32, 6]) 
+        x = x.permute(0, 1, 3, 2)
+        x = x.reshape(-1, d, s)
         batch_size, _, N = x.size()
-
-        # apply linear layer to each point 
         x = self.relu(self.bn1(self.conv1(x))) # B, D, N
         x = self.relu(self.bn2(self.conv2(x))) # B, D, N
-
-        # Take max over neighbors (why not avg?)
         x = torch.max(x, 2)[0]
         x = x.view(batch_size, -1)
-        x = x.reshape(b, n, -1).permute(0, 2, 1) # B, n, OutChanels
+        x = x.reshape(b, n, -1).permute(0, 2, 1)
         return x
 
 
@@ -105,11 +97,8 @@ class StackedAttention(nn.Module):
         x = self.relu(self.bn2(self.conv2(x)))
 
         x1 = self.sa1(x)
-        # our stuff 
         x2 = self.sa2(x1)
-        # our stuff 
         x3 = self.sa3(x2)
-        # our stuff 
         x4 = self.sa4(x3)
         
         x = torch.cat((x1, x2, x3, x4), dim=1)
@@ -118,9 +107,8 @@ class StackedAttention(nn.Module):
 
 
 class PointTransformerCls(nn.Module):
-    def __init__(self, cfg,n_tokens=256):
+    def __init__(self, cfg):
         super().__init__()
-        self.n_tokens=n_tokens
         output_channels = cfg.num_class
         d_points = cfg.input_dim
         self.conv1 = nn.Conv1d(d_points, 64, kernel_size=1, bias=False)
@@ -154,10 +142,11 @@ class PointTransformerCls(nn.Module):
         x = self.relu(self.bn1(self.conv1(x))) # B, D, N
         x = self.relu(self.bn2(self.conv2(x))) # B, D, N
         x = x.permute(0, 2, 1)
-        new_xyz, new_feature = sample_and_group(npoint=self.n_tokens * 2, nsample=32, xyz=xyz, points=x)         
-        feature_0 = self.gather_local_0(new_feature) #  Encode each token
+
+        new_xyz, new_feature = sample_and_group(npoint=512, nsample=32, xyz=xyz, points=x)         
+        feature_0 = self.gather_local_0(new_feature)
         feature = feature_0.permute(0, 2, 1)
-        new_xyz, new_feature = sample_and_group(npoint=self.n_tokens, nsample=32, xyz=new_xyz, points=feature) 
+        new_xyz, new_feature = sample_and_group(npoint=256, nsample=32, xyz=new_xyz, points=feature) 
         feature_1 = self.gather_local_1(new_feature)
         
         x = self.pt_last(feature_1)
