@@ -6,28 +6,37 @@ import warnings
 from train_utils import preprocess_batch, compute_metrics, do_eval
 import argparse
 import sys
-
 from modelnet40 import get_dataloaders as get_mn40_dls
+from config import Config as ModelConfig
 
-sys.path.append("src/models/point_transformer_mod")
-from point_transformer_cls import get_model as get_pt, get_loss as get_pt_loss
+sys.path.append("src/models/pct")
+from point_transformer_cls import get_model as get_pct, get_loss as get_pct_loss
 
-sys.path.append("src/downsamples")
-from fps_knn import FPS_KNN_Downsample
-from tome import TOME_Downsample
+sys.path.append("src/models/pt")
+from model import get_model as get_pt, get_loss as get_pt_loss
 
-def get_model(model_name, downsample, num_class, device):
-    if model_name == "pt":
-        model = get_pt(get_downsample(downsample), num_class=num_class).float().to(device)
+sys.path.append("src/downsamples/fps_knn_pct")
+from fps_knn_pct import FPS_KNN_PCT
+
+sys.path.append("src/tome")
+from tome import TOME
+
+def get_model(model_name, tome, num_points, num_class, input_dim, init_hidden_dim, k, device):
+    model_config = ModelConfig(tome, num_points, num_class, input_dim, init_hidden_dim, k)
+    if model_name == "pct":
+        model = get_pct(model_config).float().to(device)
+        loss_fn = get_pct_loss()
+    elif model_name == "pt":
+        model = get_pt(model_config).float().to(device)
         loss_fn = get_pt_loss()
     else:
         raise ValueError(f"The provided model_name is not supported: {model_name}")
     
     return model, loss_fn
 
-def get_dataloaders(dataset_name, data_dir, sampled_points, val, k):
+def get_dataloaders(dataset_name, data_dir, num_points, val, k):
     if dataset_name == "mn40":
-        train_dl, val_dl, test_dl = get_mn40_dls(data_dir, sampled_points, val, k)
+        train_dl, val_dl, test_dl = get_mn40_dls(data_dir, num_points, val, k)
     else:
         raise ValueError(f"Bad dataset provided")
     
@@ -49,9 +58,9 @@ def save_progress(save_dir, steps, train_metrics, eval_metrics, model):
 
 def get_downsample(downsample_name):
     if downsample_name == "fps_knn":
-        downsample = FPS_KNN_Downsample
+        downsample = FPS_KNN_PCT
     elif downsample_name == "tome":
-        downsample = TOME_Downsample
+        downsample = TOME
     else:
         raise ValueError(f"Invalid downsample name: {downsample_name}")
     
@@ -63,11 +72,21 @@ def train(config):
     else:
         os.makedirs(config["save_dir"], exist_ok=True)
 
-    model, loss_fn = get_model(config["model_name"], config["downsample"], config["num_classes"], config["device"])
+    model, loss_fn = get_model(
+        config["model_name"], 
+        config["tome"], 
+        config["num_points"],
+        config["num_classes"],
+        config["input_dim"],
+        config["init_hidden_dim"],
+        config["k"],  
+        config["device"]
+    )
+
     train_dl, eval_dl = get_dataloaders(
         config["dataset_name"],
         config["data_dir"],
-        config["sampled_points"],
+        config["num_points"],
         config["val"],
         config["num_classes"]
     )
@@ -109,6 +128,7 @@ def train(config):
 
 def main(args): 
     config = vars(args)
+    config["tome"] = True if config["tome"] == "True" else False
     config["val"] = True if config["val"] == "True" else False
     train(config)
 
@@ -117,12 +137,15 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name",  type=str, default="pt")
-    parser.add_argument("--downsample",  type=str, default="fps_knn")
+    parser.add_argument("--tome",  type=str, default="False")
     parser.add_argument("--dataset_name",  type=str, default="mn40")
     parser.add_argument("--data_dir",  type=str, default="data/modelnet40")
     parser.add_argument("--val",  type=str, default="False")
     parser.add_argument("--num_classes",  type=int, default=40)
-    parser.add_argument("--sampled_points",  type=int, default=1024)
+    parser.add_argument("--num_points",  type=int, default=1024)
+    parser.add_argument("--k",  type=int, default=32)
+    parser.add_argument("--input_dim", type=int, default=3)
+    parser.add_argument("--init_hidden_dim", type=int, default=64)
     parser.add_argument("--num_epochs",  type=int, default=10)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--wd", type=float, default=1e-4)
@@ -132,5 +155,5 @@ if __name__ == "__main__":
     
     main(args)
     
-# python src/train/train_model.py --model_name "pt" --downsample "fps_knn" --dataset_name "mn40" --val "False" --num_classes 10 --sampled_points 1024 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/point_transformer3" --device "cpu"
-# python src/train/train_model.py --model_name "pt" --downsample "tome" --dataset_name "mn40" --val "False" --num_classes 10 --sampled_points 1024 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/point_transformer3" --device "cpu"
+# python src/train/train_model.py --model_name "pct" --tome "True" --dataset_name "mn40" --data_dir "data/modelnet40" --val "False" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu"
+# python src/train/train_model.py --model_name "pt" --tome "False" --dataset_name "mn40" --data_dir "data/modelnet40" --val "False" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu"
