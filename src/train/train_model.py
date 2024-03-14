@@ -34,9 +34,9 @@ def get_model(model_name, tome, num_points, num_class, input_dim, init_hidden_di
     
     return model, loss_fn
 
-def get_dataloaders(dataset_name, data_dir, num_points, val, k):
+def get_dataloaders(dataset_name, data_dir, num_points, val, num_classes,batch_size):
     if dataset_name == "mn40":
-        train_dl, val_dl, test_dl = get_mn40_dls(data_dir, num_points, val, k)
+        train_dl, val_dl, test_dl = get_mn40_dls(data_dir, sampled_points=num_points, val=val, num_classes=num_classes,batch_size=batch_size)
     else:
         raise ValueError(f"Bad dataset provided")
     
@@ -88,7 +88,8 @@ def train(config):
         config["data_dir"],
         config["num_points"],
         config["val"],
-        config["num_classes"]
+        config["num_classes"],
+        config['batch_size']
     )
 
     initialize_progress_csv(config["save_dir"])
@@ -152,9 +153,10 @@ if __name__ == "__main__":
     parser.add_argument("--wd", type=float, default=1e-4)
     parser.add_argument("--save_dir", type=str, default=None)
     parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--batch_size",type=int,default=32)
     args = parser.parse_args()
     
     main(args)
     
 # python src/train/train_model.py --model_name "pct" --tome "True" --dataset_name "mn40" --data_dir "data/modelnet40" --val "False" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu"
-# python src/train/train_model.py --model_name "pt" --tome "False" --dataset_name "mn40" --data_dir "data/modelnet40" --val "False" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu"
+# python src/train/train_model.py --model_name "pt" --tome "False" --dataset_name "mn40" --data_dir "data/modelnet40" --val "False" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size=32
