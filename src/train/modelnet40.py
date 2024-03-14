@@ -175,31 +175,31 @@ class RandomNoise(object):
         noisy_pointcloud = pointcloud + noise
         return  noisy_pointcloud
     
-def load_modelnet40(dataset_dir, sampled_points=1024, max_points=None, k=40):
+def load_modelnet40(dataset_dir, sampled_points=1024, max_points=None, num_classes=40):
     path = Path(dataset_dir)
     train_transforms = transforms.Compose([PointSampler(sampled_points), Normalize(), RandRotation_z(), RandomNoise(), ToTensor()])
 
-    train_ds = PointCloudData(path, transform=train_transforms, max_points=max_points, k=k)
+    train_ds = PointCloudData(path, transform=train_transforms, max_points=max_points, k=num_classes)
     folders = train_ds.folders
     valid_ds = PointCloudData(path, valid=True, folder='test', transform=train_transforms, max_points=max_points, folders=folders)
 
     return train_ds, valid_ds
 
-def get_dataloaders(data_dir, sampled_points=1024, val=False, k=40): 
-    train_ds, test_ds = load_modelnet40(data_dir, max_points=None, sampled_points=sampled_points, k=k)
+def get_dataloaders(data_dir, sampled_points=1024, val=False, num_classes=40, batch_size=16): 
+    train_ds, test_ds = load_modelnet40(data_dir, max_points=None, sampled_points=sampled_points, num_classes=num_classes)
 
     if val:
         train_size = int(0.9 * len(train_ds))
         val_size = len(train_ds) - train_size
         train_ds, val_ds = random_split(train_ds, [train_size, val_size])
 
-        train_dataloader = DataLoader(train_ds, batch_size=32, shuffle=True)
-        val_dataloader = DataLoader(val_ds, batch_size=32, shuffle=False)
-        test_dataloader = DataLoader(test_ds, batch_size=32, shuffle=False)
+        train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+        val_dataloader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+        test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
 
         return train_dataloader, val_dataloader, test_dataloader
     
     else:
-        train_dataloader = DataLoader(train_ds, batch_size=32, shuffle=True)
-        test_dataloader = DataLoader(test_ds, batch_size=32, shuffle=False)
+        train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+        test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
         return train_dataloader, None, test_dataloader

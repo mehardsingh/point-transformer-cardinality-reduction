@@ -23,7 +23,6 @@ def do_nothing(x, mode=None):
 
 def bipartite_soft_matching(
     metric: torch.Tensor,
-    xyz: torch.Tensor,
     r: int,
     class_token: bool = False,
     distill_token: bool = False,
@@ -106,34 +105,35 @@ def bipartite_soft_matching(
 
         return out
     
-    def merge_xyz(xyz: torch.Tensor, mode="mean") -> torch.Tensor:
-        src, dst = xyz[..., ::2, :], xyz[..., 1::2, :]
-        n, t1, c = src.shape
-        unm = src.gather(dim=-2, index=unm_idx.expand(n, t1 - r, c))
-        src = src.gather(dim=-2, index=src_idx.expand(n, r, c))
-        dst = dst.scatter_reduce(-2, dst_idx.expand(n, r, c), src, reduce=mode)
+    # def merge_xyz(xyz: torch.Tensor, mode="mean") -> torch.Tensor:
+    #     src, dst = xyz[..., ::2, :], xyz[..., 1::2, :]
+    #     n, t1, c = src.shape
+    #     unm = src.gather(dim=-2, index=unm_idx.expand(n, t1 - r, c))
+    #     src = src.gather(dim=-2, index=src_idx.expand(n, r, c))
+    #     dst = dst.scatter_reduce(-2, dst_idx.expand(n, r, c), src, reduce=mode)
 
-        if distill_token:
-            return torch.cat([unm[:, :1], dst[:, :1], unm[:, 1:], dst[:, 1:]], dim=1)
-        else:
-            return torch.cat([unm, dst], dim=1)
+    #     if distill_token:
+    #         return torch.cat([unm[:, :1], dst[:, :1], unm[:, 1:], dst[:, 1:]], dim=1)
+    #     else:
+    #         return torch.cat([unm, dst], dim=1)
 
-    def unmerge_xyz(xyz: torch.Tensor) -> torch.Tensor:
-        unm_len = unm_idx.shape[1]
-        unm, dst = xyz[..., :unm_len, :], xyz[..., unm_len:, :]
-        n, _, c = unm.shape
+    # def unmerge_xyz(xyz: torch.Tensor) -> torch.Tensor:
+    #     unm_len = unm_idx.shape[1]
+    #     unm, dst = xyz[..., :unm_len, :], xyz[..., unm_len:, :]
+    #     n, _, c = unm.shape
 
-        src = dst.gather(dim=-2, index=dst_idx.expand(n, r, c))
+    #     src = dst.gather(dim=-2, index=dst_idx.expand(n, r, c))
 
-        out = torch.zeros(n, metric.shape[1], c, device=xyz.device, dtype=xyz.dtype)
+    #     out = torch.zeros(n, metric.shape[1], c, device=xyz.device, dtype=xyz.dtype)
 
-        out[..., 1::2, :] = dst
-        out.scatter_(dim=-2, index=(2 * unm_idx).expand(n, unm_len, c), src=unm)
-        out.scatter_(dim=-2, index=(2 * src_idx).expand(n, r, c), src=src)
+    #     out[..., 1::2, :] = dst
+    #     out.scatter_(dim=-2, index=(2 * unm_idx).expand(n, unm_len, c), src=unm)
+    #     out.scatter_(dim=-2, index=(2 * src_idx).expand(n, r, c), src=src)
 
         return out
 
-    return merge, unmerge, merge_xyz, unmerge_xyz
+    # return merge, unmerge, merge_xyz, unmerge_xyz
+    return merge, unmerge
 
 
 def kth_bipartite_soft_matching(

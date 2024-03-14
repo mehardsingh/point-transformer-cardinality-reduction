@@ -36,7 +36,7 @@ def get_model(model_name, tome, num_points, num_class, input_dim, init_hidden_di
 
 def get_dataloaders(dataset_name, data_dir, num_points, val, num_classes,batch_size):
     if dataset_name == "mn40":
-        train_dl, val_dl, test_dl = get_mn40_dls(data_dir, sampled_points=num_points, val=val, num_classes=num_classes,batch_size=batch_size)
+        train_dl, val_dl, test_dl = get_mn40_dls(data_dir, sampled_points=num_points, val=val, num_classes=num_classes, batch_size=batch_size)
     else:
         raise ValueError(f"Bad dataset provided")
     

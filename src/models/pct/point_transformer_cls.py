@@ -87,7 +87,7 @@ class PCT(nn.Module):
             self.downsample1 = FPS_KNN_PCT(npoint=cfg.num_points//2, nsample=cfg.k, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
             self.downsample2 = FPS_KNN_PCT(npoint=cfg.num_points//4, nsample=cfg.k, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
 
-        self.pt_last = StackedAttention()
+        self.pt_last = StackedAttention(channels=4*cfg.init_hidden_dim)
 
         self.relu = nn.ReLU()
         
