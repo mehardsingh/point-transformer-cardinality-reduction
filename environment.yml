@@ -6,10 +6,10 @@ dependencies:
   - python >=3.11
   - numpy >=1.23.5
   - pytorch >= 2.2
-  - torchvision 
-  - numpy 
-  - matplotlib 
-  - tqdm 
+  - torchvision=0.17.1
+  - numpy=1.26.4 
+  - matplotlib=3.8.3 
+  - tqdm=4.66
   - pandas >= 2.0
   - scikit-learn >= 1.4
   - jupyter >= 1.0
