@@ -33,9 +33,9 @@ def do_eval(eval_dl, model, loss_fn, device):
             all_preds.append(preds_val.detach())
             all_labels.append(labels)
         
+        losses /= len(all_labels) 
         all_preds = torch.cat(all_preds) 
         all_labels = torch.cat(all_labels)
-        losses /= len(all_labels) 
         accuracy, precision, recall, f1 = compute_metrics(all_preds, all_labels)
 
         return losses, accuracy, precision, recall, f1

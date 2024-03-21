@@ -5,12 +5,12 @@ import sys
 sys.path.append("src/train")
 from config import Config
 
-device = "mps"
+device = "cpu"
 
 x = torch.rand(32, 1024, 3).to(device)
 
 config = Config(
-    tome=False, 
+    method="tome", 
     num_points=1024, 
     num_class=10, 
     input_dim=3, 
@@ -21,4 +21,3 @@ model = get_model(config).to(device)
 
 pred = model(x)
 print(pred.shape)
-print("parth was here")

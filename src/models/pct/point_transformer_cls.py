@@ -4,9 +4,13 @@ import torch
 import torch.nn as nn
 from fps_knn_pct import FPS_KNN_PCT
 import sys
+import numpy as np
 
 sys.path.append("src/tome")
 from tome import TOME
+
+sys.path.append("src/random_subsample")
+from random_subsample import Random_Subsample_Feature
 
 # default initial hidden dim = 64
 
@@ -80,12 +84,15 @@ class PCT(nn.Module):
         self.bn1 = nn.BatchNorm1d(cfg.init_hidden_dim)
         self.bn2 = nn.BatchNorm1d(cfg.init_hidden_dim)
         
-        if cfg.tome:
+        if cfg.method == "tome":
             self.downsample1 = TOME(npoint=cfg.num_points//2, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
             self.downsample2 = TOME(npoint=cfg.num_points//4, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
-        else:
+        elif cfg.method == "normal":
             self.downsample1 = FPS_KNN_PCT(npoint=cfg.num_points//2, nsample=cfg.k, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
             self.downsample2 = FPS_KNN_PCT(npoint=cfg.num_points//4, nsample=cfg.k, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
+        else:
+            self.random_subsample1 = Random_Subsample_Feature(npoint=cfg.num_points//2, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
+            self.random_subsample2 = Random_Subsample_Feature(npoint=cfg.num_points//4, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
 
         self.pt_last = StackedAttention(channels=4*cfg.init_hidden_dim)
 
@@ -116,14 +123,18 @@ class PCT(nn.Module):
         x = self.relu(self.bn2(self.conv2(x))) # B, D, N
         x = x.permute(0, 2, 1) # B, N, D
 
-        if self.cfg.tome:
+        if self.cfg.method == "tome":
             feature_0 = self.downsample1(x)
             feature_1 = self.downsample2(feature_0)
             feature_1 = feature_1.permute(0, 2, 1)
-        else:
+        elif self.cfg.method == "normal":
             new_xyz, feature_0 = self.downsample1(xyz, x)
             new_xyz, feature_1 = self.downsample2(new_xyz, feature_0)
             feature_1 = feature_1.permute(0, 2, 1)
+        else:
+            feature_0 = self.random_subsample1(x)
+            feature_1 = self.random_subsample2(feature_0)
+            feature_1 = feature_1.permute(0,2,1)
         
         x = self.pt_last(feature_1)
         x = torch.cat([x, feature_1], dim=1)
