@@ -37,11 +37,13 @@ class Backbone(nn.Module):
             if cfg.method == "normal":
                 self.transition_downs.append(FPS_KNN_PT(cfg.num_points // 4 ** (i + 1), cfg.k, channel // 2 + 3, channel))
                 self.transformers.append(TransformerBlock(channel, 16*cfg.init_hidden_dim, cfg.k))
-            elif cfg.method == "tome":
-                self.transition_downs.append(TOME(cfg.num_points // 4 ** (i + 1), channel // 2, channel))
-                # self.transformers.append(TOMETransformerBlock(channel, 16*cfg.init_hidden_dim, cfg.k))
+            elif cfg.method == "tome_ft":
+                self.transition_downs.append(TOME(cfg.num_points // 4 ** (i + 1), channel // 2, channel, use_xyz=False))
                 self.transformers.append(MyAttention2(channel, 16*cfg.init_hidden_dim, cfg.k))
-            else:
+            elif cfg.method == "tome_xyz":
+                self.transition_downs.append(TOME(cfg.num_points // 4 ** (i + 1), channel // 2, channel, use_xyz=True))
+                self.transformers.append(MyAttention2(channel, 16*cfg.init_hidden_dim, cfg.k))
+            elif cfg.method == "random":
                 self.transition_downs.append(Random_Subsample_XYZ(cfg.num_points // 4 ** (i + 1), channel // 2, channel))
                 self.transformers.append(TransformerBlock(channel, 16*cfg.init_hidden_dim, cfg.k))
         
@@ -61,10 +63,10 @@ class Backbone(nn.Module):
         
             return points, xyz_and_feats
         
-        elif self.cfg.method == "tome":
+        elif self.cfg.method in ["tome_ft", "tome_xyz"]:
             points = self.transformer1(self.fc1(x))
             for i in range(self.nblocks):
-                points = self.transition_downs[i](points)
+                points, xyz = self.transition_downs[i](points, xyz)
                 points = self.transformers[i](points)
 
             return points

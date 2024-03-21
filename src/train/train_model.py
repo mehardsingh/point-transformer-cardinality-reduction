@@ -8,6 +8,7 @@ import argparse
 import sys
 from modelnet40 import get_dataloaders as get_mn40_dls
 from config import Config as ModelConfig
+import time
 
 sys.path.append("src/models/pct")
 from point_transformer_cls import get_model as get_pct, get_loss as get_pct_loss
@@ -44,17 +45,18 @@ def get_dataloaders(dataset_name, data_dir, num_points, val, num_classes,batch_s
     return train_dl, eval_dl
 
 def initialize_progress_csv(save_dir):
-    column_names = ["step", "T_Loss", "T_Accuracy", "T_Precision", "T_Recall", "T_F1", "V_Loss", "V_Accuracy", "V_Precision", "V_Recall", "V_F1"]
+    column_names = ["step", "T_Loss", "T_Accuracy", "T_Precision", "T_Recall", "T_F1", "V_Loss", "V_Accuracy", "V_Precision", "V_Recall", "V_F1","Elapsed_time"]
     with open(os.path.join(save_dir, "progress.csv"), mode="w") as f:
         f.write(f"{','.join(column_names)}\n")
 
-def save_progress(save_dir, steps, train_metrics, eval_metrics, model):
+def save_progress(save_dir, steps, train_metrics, eval_metrics, model, elapsed_time, save_curr_model):
     with open(os.path.join(save_dir, "progress.csv"), mode="a") as f:
         row_metrics = [steps] + train_metrics + eval_metrics
-        row_metrics = [str(i) for i in row_metrics]
+        row_metrics = [str(i) for i in row_metrics] + [f'{elapsed_time:5.3f}']
         f.write(f"{','.join(row_metrics)}\n")
 
-    torch.save(model.state_dict(), os.path.join(save_dir, f"model_step{steps}.pt"))
+    if save_curr_model:
+        torch.save(model.state_dict(), os.path.join(save_dir, f"model.pt"))
 
 # def get_downsample(downsample_name):
 #     if downsample_name == "fps_knn":
@@ -97,7 +99,10 @@ def train(config):
     model.train()
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=config["wd"])
 
+    start_time = time.time()
     curr_step = 1
+    best_eval_loss = 0
+
     for epoch in range(config["num_epochs"]): 
         pbar = tqdm(train_dl, desc="Epoch {}/{} progress".format(epoch+1, config["num_epochs"]))
         batch_train_metrics = list()
@@ -126,7 +131,8 @@ def train(config):
         eval_metrics = [eval_loss, eval_accuracy, eval_precision, eval_recall, eval_f1]                    
         model.train()
 
-        save_progress(config["save_dir"], curr_step, avg_train_metrics, eval_metrics, model)
+        save_curr_model = best_eval_loss > eval_loss
+        save_progress(config["save_dir"], curr_step, avg_train_metrics, eval_metrics, model, time.time() - start_time, save_curr_model)
 
 def main(args): 
     config = vars(args)
@@ -156,11 +162,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     main(args)
-    
+
 # python src/train/train_model.py --model_name "pct" --method "normal" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-4 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
-# python src/train/train_model.py --model_name "pct" --method "tome" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-4 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
+# python src/train/train_model.py --model_name "pct" --method "tome_ft" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-4 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
+# python src/train/train_model.py --model_name "pct" --method "tome_xyz" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-4 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
 # python src/train/train_model.py --model_name "pct" --method "random" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-4 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
     
 # python src/train/train_model.py --model_name "pct" --method "normal" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 16 --input_dim 3 --init_hidden_dim 32 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
-    # python src/train/train_model.py --model_name "pct" --method "tome" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 16 --input_dim 3 --init_hidden_dim 32 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
-    # python src/train/train_model.py --model_name "pct" --method "random" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 16 --input_dim 3 --init_hidden_dim 32 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
+# python src/train/train_model.py --model_name "pct" --method "tome_ft" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 16 --input_dim 3 --init_hidden_dim 32 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
+# python src/train/train_model.py --model_name "pct" --method "tome_xyz" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 16 --input_dim 3 --init_hidden_dim 32 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
+# python src/train/train_model.py --model_name "pct" --method "random" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 16 --input_dim 3 --init_hidden_dim 32 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
