@@ -84,9 +84,12 @@ class PCT(nn.Module):
         self.bn1 = nn.BatchNorm1d(cfg.init_hidden_dim)
         self.bn2 = nn.BatchNorm1d(cfg.init_hidden_dim)
         
-        if cfg.method == "tome":
-            self.downsample1 = TOME(npoint=cfg.num_points//2, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
-            self.downsample2 = TOME(npoint=cfg.num_points//4, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
+        if cfg.method == "tome_ft":
+            self.downsample1 = TOME(npoint=cfg.num_points//2, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim, use_xyz=False)
+            self.downsample2 = TOME(npoint=cfg.num_points//4, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim, use_xyz=False)
+        elif cfg.method == "tome_xyz":
+            self.downsample1 = TOME(npoint=cfg.num_points//2, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim, use_xyz=True)
+            self.downsample2 = TOME(npoint=cfg.num_points//4, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim, use_xyz=True)
         elif cfg.method == "normal":
             self.downsample1 = FPS_KNN_PCT(npoint=cfg.num_points//2, nsample=cfg.k, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
             self.downsample2 = FPS_KNN_PCT(npoint=cfg.num_points//4, nsample=cfg.k, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
@@ -123,9 +126,9 @@ class PCT(nn.Module):
         x = self.relu(self.bn2(self.conv2(x))) # B, D, N
         x = x.permute(0, 2, 1) # B, N, D
 
-        if self.cfg.method == "tome":
-            feature_0 = self.downsample1(x)
-            feature_1 = self.downsample2(feature_0)
+        if self.cfg.method in ["tome_ft", "tome_xyz"]:
+            feature_0, new_xyz = self.downsample1(x, xyz)
+            feature_1, new_xyz = self.downsample2(feature_0, new_xyz)
             feature_1 = feature_1.permute(0, 2, 1)
         elif self.cfg.method == "normal":
             new_xyz, feature_0 = self.downsample1(xyz, x)
