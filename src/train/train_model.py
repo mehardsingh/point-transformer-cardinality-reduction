@@ -21,8 +21,8 @@ from fps_knn_pct import FPS_KNN_PCT
 sys.path.append("src/tome")
 from tome import TOME
 
-def get_model(model_name, tome, num_points, num_class, input_dim, init_hidden_dim, k, device):
-    model_config = ModelConfig(tome, num_points, num_class, input_dim, init_hidden_dim, k)
+def get_model(model_name, method, num_points, num_class, input_dim, init_hidden_dim, k, device):
+    model_config = ModelConfig(method, num_points, num_class, input_dim, init_hidden_dim, k)
     if model_name == "pct":
         model = get_pct(model_config).float().to(device)
         loss_fn = get_pct_loss()
@@ -36,7 +36,7 @@ def get_model(model_name, tome, num_points, num_class, input_dim, init_hidden_di
 
 def get_dataloaders(dataset_name, data_dir, num_points, val, num_classes,batch_size):
     if dataset_name == "mn40":
-        train_dl, val_dl, test_dl = get_mn40_dls(data_dir, sampled_points=num_points, val=val, num_classes=num_classes,batch_size=batch_size)
+        train_dl, val_dl, test_dl = get_mn40_dls(data_dir, sampled_points=num_points, val=val, num_classes=num_classes, batch_size=batch_size)
     else:
         raise ValueError(f"Bad dataset provided")
     
@@ -56,15 +56,15 @@ def save_progress(save_dir, steps, train_metrics, eval_metrics, model):
 
     torch.save(model.state_dict(), os.path.join(save_dir, f"model_step{steps}.pt"))
 
-def get_downsample(downsample_name):
-    if downsample_name == "fps_knn":
-        downsample = FPS_KNN_PCT
-    elif downsample_name == "tome":
-        downsample = TOME
-    else:
-        raise ValueError(f"Invalid downsample name: {downsample_name}")
+# def get_downsample(downsample_name):
+#     if downsample_name == "fps_knn":
+#         downsample = FPS_KNN_PCT
+#     elif downsample_name == "tome":
+#         downsample = TOME
+#     else:
+#         raise ValueError(f"Invalid downsample name: {downsample_name}")
     
-    return downsample
+#     return downsample
 
 def train(config): 
     if not config["save_dir"]:
@@ -74,7 +74,7 @@ def train(config):
 
     model, loss_fn = get_model(
         config["model_name"], 
-        config["tome"], 
+        config["method"], 
         config["num_points"],
         config["num_classes"],
         config["input_dim"],
@@ -122,6 +122,7 @@ def train(config):
 
         pbar.set_description("Epoch {}/{} progress [evaluating]".format(epoch+1, config["num_epochs"]))
         eval_loss, eval_accuracy, eval_precision, eval_recall, eval_f1 = do_eval(eval_dl, model, loss_fn, config["device"])
+        print("Eval Loss: {:.2f}, Eval Acc: {:.2f}, Eval Precision: {:.2f}, Eval Recall: {:.2f}, Eval F1: {:.2f}".format(eval_loss, eval_accuracy, eval_precision, eval_recall, eval_f1))
         eval_metrics = [eval_loss, eval_accuracy, eval_precision, eval_recall, eval_f1]                    
         model.train()
 
@@ -129,7 +130,6 @@ def train(config):
 
 def main(args): 
     config = vars(args)
-    config["tome"] = True if config["tome"] == "True" else False
     config["val"] = True if config["val"] == "True" else False
     train(config)
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name",  type=str, default="pt")
-    parser.add_argument("--tome",  type=str, default="False")
+    parser.add_argument("--method",  type=str, default="normal")
     parser.add_argument("--dataset_name",  type=str, default="mn40")
     parser.add_argument("--data_dir",  type=str, default="data/modelnet40")
     parser.add_argument("--val",  type=str, default="False")
@@ -157,5 +157,10 @@ if __name__ == "__main__":
     
     main(args)
     
-# python src/train/train_model.py --model_name "pct" --tome "True" --dataset_name "mn40" --data_dir "data/modelnet40" --val "False" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu"
-# python src/train/train_model.py --model_name "pt" --tome "False" --dataset_name "mn40" --data_dir "data/modelnet40" --val "False" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size=32
+# python src/train/train_model.py --model_name "pct" --method "normal" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-4 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
+# python src/train/train_model.py --model_name "pct" --method "tome" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-4 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
+# python src/train/train_model.py --model_name "pct" --method "random" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 32 --input_dim 3 --init_hidden_dim 64 --num_epochs 10 --lr 1e-4 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
+    
+# python src/train/train_model.py --model_name "pct" --method "normal" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 16 --input_dim 3 --init_hidden_dim 32 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
+    # python src/train/train_model.py --model_name "pct" --method "tome" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 16 --input_dim 3 --init_hidden_dim 32 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16
+    # python src/train/train_model.py --model_name "pct" --method "random" --dataset_name "mn40" --data_dir "data/modelnet40" --val "True" --num_classes 10 --num_points 1024 --k 16 --input_dim 3 --init_hidden_dim 32 --num_epochs 10 --lr 1e-3 --wd 1e-4 --save_dir "outputs/pt_tome" --device "cpu" --batch_size 16

@@ -10,6 +10,7 @@ class Merge(nn.Module):
 
     def forward(self, points):
         r = points.shape[1] - self.npoint
+        # pmerger, punmerger, xyzmerger, xyzunmerger = bipartite_soft_matching(points, r)
         pmerger, punmerger = bipartite_soft_matching(points, r)
         merged = pmerger(points)
 

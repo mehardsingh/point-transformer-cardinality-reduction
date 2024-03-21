@@ -53,20 +53,20 @@ def bipartite_soft_matching(
         return do_nothing, do_nothing
 
     with torch.no_grad():
-        metric = metric / metric.norm(dim=-1, keepdim=True)
-        a, b = metric[..., ::2, :], metric[..., 1::2, :]
-        scores = a @ b.transpose(-1, -2)
+        metric = metric / metric.norm(dim=-1, keepdim=True) # B, N, D
+        a, b = metric[..., ::2, :], metric[..., 1::2, :] # A/B = B, N/2 D
+        scores = a @ b.transpose(-1, -2) # B, n/2 x n/2
 
         if class_token:
             scores[..., 0, :] = -math.inf
         if distill_token:
             scores[..., :, 0] = -math.inf
 
-        node_max, node_idx = scores.max(dim=-1)
-        edge_idx = node_max.argsort(dim=-1, descending=True)[..., None] # gets the most similar edge from each pt in a to b
+        node_max, node_idx = scores.max(dim=-1) # B, n/2 === get the most similar edge from each in a to b
+        edge_idx = node_max.argsort(dim=-1, descending=True)[..., None] # edge_idx is ordering the edges that sten from a in descending order
 
-        unm_idx = edge_idx[..., r:, :]  # Unmerged Tokens
-        src_idx = edge_idx[..., :r, :]  # Merged Tokens
+        unm_idx = edge_idx[..., r:, :]  # Unmerged Tokens 
+        src_idx = edge_idx[..., :r, :]  # Merged Tokens === selecting the top r edges
 
         # unm index will always be 0 when reducing by 50%
         # src_tokens maintains all a and its most similar edge
@@ -104,7 +104,35 @@ def bipartite_soft_matching(
         out.scatter_(dim=-2, index=(2 * src_idx).expand(n, r, c), src=src)
 
         return out
+    
+    # def merge_xyz(xyz: torch.Tensor, mode="mean") -> torch.Tensor:
+    #     src, dst = xyz[..., ::2, :], xyz[..., 1::2, :]
+    #     n, t1, c = src.shape
+    #     unm = src.gather(dim=-2, index=unm_idx.expand(n, t1 - r, c))
+    #     src = src.gather(dim=-2, index=src_idx.expand(n, r, c))
+    #     dst = dst.scatter_reduce(-2, dst_idx.expand(n, r, c), src, reduce=mode)
 
+    #     if distill_token:
+    #         return torch.cat([unm[:, :1], dst[:, :1], unm[:, 1:], dst[:, 1:]], dim=1)
+    #     else:
+    #         return torch.cat([unm, dst], dim=1)
+
+    # def unmerge_xyz(xyz: torch.Tensor) -> torch.Tensor:
+    #     unm_len = unm_idx.shape[1]
+    #     unm, dst = xyz[..., :unm_len, :], xyz[..., unm_len:, :]
+    #     n, _, c = unm.shape
+
+    #     src = dst.gather(dim=-2, index=dst_idx.expand(n, r, c))
+
+    #     out = torch.zeros(n, metric.shape[1], c, device=xyz.device, dtype=xyz.dtype)
+
+    #     out[..., 1::2, :] = dst
+    #     out.scatter_(dim=-2, index=(2 * unm_idx).expand(n, unm_len, c), src=unm)
+    #     out.scatter_(dim=-2, index=(2 * src_idx).expand(n, r, c), src=src)
+
+        return out
+
+    # return merge, unmerge, merge_xyz, unmerge_xyz
     return merge, unmerge
 
 

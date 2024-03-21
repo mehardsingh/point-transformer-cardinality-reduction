@@ -1,6 +1,6 @@
 class Config:
-    def __init__(self, tome, num_points, num_class, input_dim, init_hidden_dim, k):
-        self.tome = tome
+    def __init__(self, method, num_points, num_class, input_dim, init_hidden_dim, k):
+        self.method = method
         self.num_points = num_points
         self.num_class = num_class
         self.input_dim = input_dim

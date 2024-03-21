@@ -10,7 +10,7 @@ device = "cpu"
 x = torch.rand(32, 1024, 3).to(device)
 
 config = Config(
-    tome=True, 
+    method="tome", 
     num_points=1024, 
     num_class=10, 
     input_dim=3, 
