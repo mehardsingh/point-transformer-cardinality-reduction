@@ -27,3 +27,5 @@ python src/train/train_model.py --model_name "pt" --method "random" --dataset_na
 git add $output_dir
 git commit -m "results"
 git push -u origin run_models
+
+# test
