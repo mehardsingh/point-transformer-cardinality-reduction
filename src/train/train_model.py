@@ -101,7 +101,7 @@ def train(config):
 
     start_time = time.time()
     curr_step = 1
-    best_eval_loss = 0
+    best_eval_loss = 5e5
 
     for epoch in range(config["num_epochs"]): 
         pbar = tqdm(train_dl, desc="Epoch {}/{} progress".format(epoch+1, config["num_epochs"]))
@@ -131,8 +131,11 @@ def train(config):
         eval_metrics = [eval_loss, eval_accuracy, eval_precision, eval_recall, eval_f1]                    
         model.train()
 
-        save_curr_model = best_eval_loss > eval_loss
-        save_progress(config["save_dir"], curr_step, avg_train_metrics, eval_metrics, model, time.time() - start_time, save_curr_model)
+        if eval_loss <= best_eval_loss:
+            save_progress(config["save_dir"], curr_step, avg_train_metrics, eval_metrics, model, time.time() - start_time, True)
+            best_eval_loss = eval_loss
+        else:
+            save_progress(config["save_dir"], curr_step, avg_train_metrics, eval_metrics, model, time.time() - start_time, False)
 
 def main(args): 
     config = vars(args)

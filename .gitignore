@@ -6,3 +6,4 @@ __pycache__
 *.off
 src/misc
 .ipynb_checkpoints
+env/
