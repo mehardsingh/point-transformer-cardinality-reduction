@@ -94,10 +94,14 @@ def train(config):
         config['batch_size']
     )
 
+    print(config['device'])
+    device = config['device']
     initialize_progress_csv(config["save_dir"])
 
     model.train()
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=config["wd"])
+    model = model.to(device)
+
 
     start_time = time.time()
     curr_step = 1
@@ -110,6 +114,9 @@ def train(config):
         for batch in pbar: 
             optimizer.zero_grad()
             pointclouds, labels = preprocess_batch(batch, config["device"])
+            pointclouds = pointclouds.to(device)
+            labels = labels.to(device)
+
             preds = model(pointclouds)
 
             loss = loss_fn(preds, labels)
