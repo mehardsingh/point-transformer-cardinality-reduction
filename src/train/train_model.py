@@ -22,8 +22,8 @@ from fps_knn_pct import FPS_KNN_PCT
 sys.path.append("src/tome")
 from tome import TOME
 
-def get_model(model_name, method, num_points, num_class, input_dim, init_hidden_dim, k, device):
-    model_config = ModelConfig(method, num_points, num_class, input_dim, init_hidden_dim, k)
+def get_model(model_name, method, num_points, num_class, input_dim, init_hidden_dim, k, device, **kwargs):
+    model_config = ModelConfig(method, num_points, num_class, input_dim, init_hidden_dim, k,**kwargs)
     if model_name == "pct":
         model = get_pct(model_config).float().to(device)
         loss_fn = get_pct_loss()
@@ -37,7 +37,7 @@ def get_model(model_name, method, num_points, num_class, input_dim, init_hidden_
 
 def get_dataloaders(dataset_name, data_dir, num_points, val, num_classes,batch_size):
     if dataset_name == "mn40":
-        train_dl, val_dl, test_dl = get_mn40_dls(data_dir, sampled_points=num_points, val=val, num_classes=num_classes, batch_size=batch_size)
+        train_dl, val_dl, test_dl = get_mn40_dls(data_dir, sampled_points=num_points, val=val, num_classes=num_classes, batch_size=batch_size, num_workers=8)
     else:
         raise ValueError(f"Bad dataset provided")
     
@@ -169,6 +169,8 @@ if __name__ == "__main__":
     parser.add_argument("--save_dir", type=str, default=None)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--batch_size",type=int,default=32)
+    parser.add_argument("--tome_further_ds",type=float,default=None) 
+    parser.add_argument("--tome_further_ds_use_xyz", type=bool, default=False)
     args = parser.parse_args()
     
     main(args)

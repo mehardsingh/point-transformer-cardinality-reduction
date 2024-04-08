@@ -8,6 +8,7 @@ import numpy as np
 
 sys.path.append("src/tome")
 from tome import TOME
+import tome
 
 sys.path.append("src/random_subsample")
 from random_subsample import Random_Subsample_Feature
@@ -73,7 +74,25 @@ class StackedAttention(nn.Module):
         x = torch.cat((x1, x2, x3, x4), dim=1)
 
         return x
+    
 
+def maybe_make_tome_downsample(cfg,n_points ):
+    """
+    If specified, create a downsampling layer for a model, using Tome.Merge 
+    Otherwise, create an identity function, and leave n_points unchanged 
+    """
+    if (
+        (not hasattr(cfg,'tome_futher_ds')) 
+        or (not hasattr(cfg,'tome_further_ds_use_xyz')) 
+        or cfg.tome_further_ds is None
+        ): 
+        return (lambda *args: args), n_points
+    else: 
+        assert( 0 <= cfg.tome_further_ds <= 1, "Futher downsampling value should be in range [0,1)")  
+        assert(cfg.method != "random", "Further downsampling not possible with random subsampling.")
+        out_n_pts = n_points*cfg.tome_further_ds
+        return tome.Merge(out_n_pts, use_xyz=cfg.tome_further_ds_use_xyz), out_n_pts
+    
 class PCT(nn.Module):
     def __init__(self, cfg):
         super().__init__()
@@ -84,18 +103,43 @@ class PCT(nn.Module):
         self.bn1 = nn.BatchNorm1d(cfg.init_hidden_dim)
         self.bn2 = nn.BatchNorm1d(cfg.init_hidden_dim)
         
+        n_points = cfg.num_points 
         if cfg.method == "tome_ft":
-            self.downsample1 = TOME(npoint=cfg.num_points//2, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim, use_xyz=False)
-            self.downsample2 = TOME(npoint=cfg.num_points//4, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim, use_xyz=False)
+            n_points = n_points //2
+            self.downsample1 = TOME(npoint=n_points, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim, use_xyz=False)
+            self.tome_further_ds1, n_points = maybe_make_tome_downsample(cfg,n_points)
+
+            n_points = n_points //2
+            self.downsample2 = TOME(npoint=n_points, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim, use_xyz=False)
+            self.tome_further_ds2, n_points = maybe_make_tome_downsample(cfg,n_points)
+
         elif cfg.method == "tome_xyz":
-            self.downsample1 = TOME(npoint=cfg.num_points//2, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim, use_xyz=True)
-            self.downsample2 = TOME(npoint=cfg.num_points//4, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim, use_xyz=True)
+            n_points = n_points //2
+            self.downsample1 = TOME(npoint=n_points, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim, use_xyz=True)
+            self.tome_further_ds1, n_points = maybe_make_tome_downsample(cfg,n_points)
+
+            n_points = n_points //2
+            self.downsample2 = TOME(npoint=n_points, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim, use_xyz=True)
+            self.tome_further_ds2, n_points = maybe_make_tome_downsample(cfg,n_points)
+
         elif cfg.method == "normal":
-            self.downsample1 = FPS_KNN_PCT(npoint=cfg.num_points//2, nsample=cfg.k, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
-            self.downsample2 = FPS_KNN_PCT(npoint=cfg.num_points//4, nsample=cfg.k, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
-        else:
-            self.random_subsample1 = Random_Subsample_Feature(npoint=cfg.num_points//2, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
-            self.random_subsample2 = Random_Subsample_Feature(npoint=cfg.num_points//4, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
+            n_points = n_points //2
+            self.downsample1 = FPS_KNN_PCT(npoint=n_points, nsample=cfg.k, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
+            self.tome_further_ds1, n_points = maybe_make_tome_downsample(cfg,n_points)
+
+            n_points = n_points //2
+            self.downsample2 = FPS_KNN_PCT(npoint=n_points, nsample=cfg.k, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
+            self.tome_further_ds2, n_points = maybe_make_tome_downsample(cfg,n_points)
+        elif cfg.method == "random":
+            n_points = n_points //2
+            self.random_subsample1 = Random_Subsample_Feature(npoint=n_points, in_channels=cfg.init_hidden_dim, out_channels=2*cfg.init_hidden_dim)
+            self.tome_further_ds1, n_points = maybe_make_tome_downsample(cfg,n_points)
+
+            n_points = n_points //2
+            self.random_subsample2 = Random_Subsample_Feature(npoint=n_points, in_channels=2*cfg.init_hidden_dim, out_channels=4*cfg.init_hidden_dim)
+            self.tome_further_ds2, n_points = maybe_make_tome_downsample(cfg,n_points)
+        else: 
+            raise ValueError(f"Invalid method provided. {cfg.method}")
 
         self.pt_last = StackedAttention(channels=4*cfg.init_hidden_dim)
 
@@ -128,17 +172,27 @@ class PCT(nn.Module):
 
         if self.cfg.method in ["tome_ft", "tome_xyz"]:
             feature_0, new_xyz = self.downsample1(x, xyz)
+            feature_0,new_xyz = self.tome_further_ds1(feature_0,new_xyz)
+
             feature_1, new_xyz = self.downsample2(feature_0, new_xyz)
+            feature_1,new_xyz = self.tome_further_ds2(feature_1,xyz)
+
             feature_1 = feature_1.permute(0, 2, 1)
         elif self.cfg.method == "normal":
             new_xyz, feature_0 = self.downsample1(xyz, x)
+            feature_0,new_xyz = self.tome_further_ds1(feature_0,new_xyz)
+
             new_xyz, feature_1 = self.downsample2(new_xyz, feature_0)
+            feature_1,new_xyz = self.tome_further_ds2(feature_1,new_xyz)
+
             feature_1 = feature_1.permute(0, 2, 1)
         else:
             feature_0 = self.random_subsample1(x)
+
             feature_1 = self.random_subsample2(feature_0)
             feature_1 = feature_1.permute(0,2,1)
         
+
         x = self.pt_last(feature_1)
         x = torch.cat([x, feature_1], dim=1)
         x = self.conv_fuse(x)

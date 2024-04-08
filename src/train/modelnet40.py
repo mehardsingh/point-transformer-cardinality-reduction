@@ -185,7 +185,7 @@ def load_modelnet40(dataset_dir, sampled_points=1024, max_points=None, num_class
 
     return train_ds, valid_ds
 
-def get_dataloaders(data_dir, sampled_points=1024, val=False, num_classes=40, batch_size=16): 
+def get_dataloaders(data_dir, sampled_points=1024, val=False, num_classes=40, batch_size=16, **kwargs): 
     train_ds, test_ds = load_modelnet40(data_dir, max_points=None, sampled_points=sampled_points, num_classes=num_classes)
 
     if val:
@@ -193,13 +193,13 @@ def get_dataloaders(data_dir, sampled_points=1024, val=False, num_classes=40, ba
         val_size = len(train_ds) - train_size
         train_ds, val_ds = random_split(train_ds, [train_size, val_size])
 
-        train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-        val_dataloader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
-        test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+        train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,**kwargs)
+        val_dataloader = DataLoader(val_ds, batch_size=batch_size, shuffle=False,**kwargs)
+        test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=False,**kwargs)
 
         return train_dataloader, val_dataloader, test_dataloader
     
     else:
-        train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-        test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+        train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,**kwargs)
+        test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=False,**kwargs)
         return train_dataloader, None, test_dataloader

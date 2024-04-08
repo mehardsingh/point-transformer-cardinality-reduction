@@ -45,3 +45,4 @@ class TOME(nn.Module):
         merged_pts = merged_pts.permute(0, 2, 1) # B, N, out_channels
 
         return merged_pts, merged_xyz
+    
