@@ -22,8 +22,9 @@ from fps_knn_pct import FPS_KNN_PCT
 sys.path.append("src/tome")
 from tome import TOME
 
-def get_model(model_name, method, num_points, num_class, input_dim, init_hidden_dim, k, device, **kwargs):
-    model_config = ModelConfig(method, num_points, num_class, input_dim, init_hidden_dim, k,**kwargs)
+def get_model(model_name, method, num_points, num_class, input_dim, init_hidden_dim, k, device, config={}):
+    config = {k:v for k,v in config.items() if k not in ['method','num_points','num_class','input_dim','init_hidden_dim','k']}
+    model_config = ModelConfig(method, num_points, num_class, input_dim, init_hidden_dim, k,**config)
     if model_name == "pct":
         model = get_pct(model_config).float().to(device)
         loss_fn = get_pct_loss()
@@ -69,6 +70,7 @@ def save_progress(save_dir, steps, train_metrics, eval_metrics, model, elapsed_t
 #     return downsample
 
 def train(config): 
+    print('Training model with config: ',config)
     if not config["save_dir"]:
         raise ValueError("The save_dir is None")
     else:
@@ -82,7 +84,9 @@ def train(config):
         config["input_dim"],
         config["init_hidden_dim"],
         config["k"],  
-        config["device"]
+        config["device"],
+        config=config
+
     )
 
     train_dl, eval_dl = get_dataloaders(
@@ -147,6 +151,7 @@ def train(config):
 def main(args): 
     config = vars(args)
     config["val"] = True if config["val"] == "True" else False
+    config["tome_further_ds_use_xyz"] = True if config["tome_further_ds_use_xyz"] == "true" else False 
     train(config)
 
 if __name__ == "__main__":
@@ -170,7 +175,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--batch_size",type=int,default=32)
     parser.add_argument("--tome_further_ds",type=float,default=None) 
-    parser.add_argument("--tome_further_ds_use_xyz", type=bool, default=False)
+    parser.add_argument("--tome_further_ds_use_xyz", type=str, default="False")
     args = parser.parse_args()
     
     main(args)

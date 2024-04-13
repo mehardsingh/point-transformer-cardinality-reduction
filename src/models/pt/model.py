@@ -64,12 +64,13 @@ class Backbone(nn.Module):
             #     # TODO: further downsampling 
             #     self.transformers.append(TransformerBlock(channel, 16*cfg.init_hidden_dim, cfg.k))
             if  (
-                 (hasattr(cfg,'tome_futher_ds')) 
-                  and  (not hasattr(cfg,'tome_further_ds_use_xyz'))  
+                 (hasattr(cfg,'tome_further_ds')) 
+                  and  (hasattr(cfg,'tome_further_ds_use_xyz'))  
                   and cfg.tome_further_ds is not None
                 ):
                 
                 assert( 0 <= cfg.tome_further_ds <= 1, "Futher downsampling value should be in range [0,1)")  
+                print(f'initing tome with downsampling factor = {cfg.tome_further_ds} and use_xyz = {cfg.tome_further_ds_use_xyz}')
                 out_n_pts = num_pts * cfg.tome_further_ds
                 self.tome_further_downsample.append(tome.Merge(out_n_pts, use_xyz=cfg.tome_further_ds_use_xyz))
 
@@ -77,11 +78,10 @@ class Backbone(nn.Module):
         self.cfg = cfg
         
     def maybe_tome_downsample(self,i,points, xyz):
-        if self.tome_further_downsample is not None: 
-            return self.tome_further_downsample[i](points,xyz)
-        else: 
+        if self.tome_further_downsample is not None and len(self.tome_further_downsample) >0: 
+            points, _, xyz,_ =  self.tome_further_downsample[i](points,xyz)
             # do nothing 
-            return points, xyz
+        return points, xyz
 
         
     def forward(self, x):

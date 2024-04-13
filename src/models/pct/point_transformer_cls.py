@@ -5,6 +5,7 @@ import torch.nn as nn
 from fps_knn_pct import FPS_KNN_PCT
 import sys
 import numpy as np
+import math
 
 sys.path.append("src/tome")
 from tome import TOME
@@ -81,16 +82,19 @@ def maybe_make_tome_downsample(cfg,n_points ):
     If specified, create a downsampling layer for a model, using Tome.Merge 
     Otherwise, create an identity function, and leave n_points unchanged 
     """
+    # print(f'attempting to init tome with downsampling factor = {cfg.tome_further_ds} and use_xyz = {cfg.tome_further_ds_use_xyz}')
     if (
-        (not hasattr(cfg,'tome_futher_ds')) 
+        (not hasattr(cfg,'tome_further_ds')) 
         or (not hasattr(cfg,'tome_further_ds_use_xyz')) 
         or cfg.tome_further_ds is None
         ): 
         return (lambda *args: args), n_points
     else: 
-        assert( 0 <= cfg.tome_further_ds <= 1, "Futher downsampling value should be in range [0,1)")  
-        assert(cfg.method != "random", "Further downsampling not possible with random subsampling.")
-        out_n_pts = n_points*cfg.tome_further_ds
+        assert 0 <= cfg.tome_further_ds <= 1 # , "Futher downsampling value should be in range [0,1)")  
+        assert cfg.method != "random" # "Further downsampling not possible with random subsampling.")
+
+        print(f'initing tome with downsampling factor = {cfg.tome_further_ds} and use_xyz = {cfg.tome_further_ds_use_xyz}')
+        out_n_pts = math.ceil(n_points*cfg.tome_further_ds)
         return tome.Merge(out_n_pts, use_xyz=cfg.tome_further_ds_use_xyz), out_n_pts
     
 class PCT(nn.Module):
@@ -180,10 +184,10 @@ class PCT(nn.Module):
             feature_1 = feature_1.permute(0, 2, 1)
         elif self.cfg.method == "normal":
             new_xyz, feature_0 = self.downsample1(xyz, x)
-            feature_0,new_xyz = self.tome_further_ds1(feature_0,new_xyz)
+            feature_0,_,new_xyz,_ = self.tome_further_ds1(feature_0,new_xyz)
 
             new_xyz, feature_1 = self.downsample2(new_xyz, feature_0)
-            feature_1,new_xyz = self.tome_further_ds2(feature_1,new_xyz)
+            feature_1,_,new_xyz,_  = self.tome_further_ds2(feature_1,new_xyz)
 
             feature_1 = feature_1.permute(0, 2, 1)
         else:

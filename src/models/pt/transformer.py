@@ -111,7 +111,7 @@ class MyAttention2(nn.Module):
 
     def forward(self, features):
         # No need for sorting when k = n, so we directly get knn_idx as indices 0 to n-1
-        knn_idx = torch.arange(features.shape[1]).unsqueeze(0).repeat(features.shape[0], 1).unsqueeze(2)  # b x n x 1
+        knn_idx = torch.arange(features.shape[1]).unsqueeze(0).repeat(features.shape[0], 1).unsqueeze(2).to(features.device)# b x n x 1
         # knn_xyz = index_points(xyz, knn_idx)
 
         pre = features

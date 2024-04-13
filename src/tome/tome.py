@@ -5,7 +5,7 @@ from tome_utils import bipartite_soft_matching
 class Merge(nn.Module):
     def __init__(self, npoint, compress=False, use_xyz=False):
         super().__init__()
-        self.npoint = npoint
+        self.npoint = int(npoint)
         self.compress = compress
         self.use_xyz = use_xyz
 
