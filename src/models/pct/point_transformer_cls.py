@@ -88,7 +88,7 @@ def maybe_make_tome_downsample(cfg,n_points ):
         or (not hasattr(cfg,'tome_further_ds_use_xyz')) 
         or cfg.tome_further_ds is None
         ): 
-        return (lambda *args: args), n_points
+        return (lambda feature,xyz: (feature,feature,xyz,xyz)), n_points
     else: 
         assert 0 <= cfg.tome_further_ds <= 1 # , "Futher downsampling value should be in range [0,1)")  
         assert cfg.method != "random" # "Further downsampling not possible with random subsampling.")
@@ -176,10 +176,10 @@ class PCT(nn.Module):
 
         if self.cfg.method in ["tome_ft", "tome_xyz"]:
             feature_0, new_xyz = self.downsample1(x, xyz)
-            feature_0,new_xyz = self.tome_further_ds1(feature_0,new_xyz)
+            feature_0,_,new_xyz,_ = self.tome_further_ds1(feature_0,new_xyz)
 
             feature_1, new_xyz = self.downsample2(feature_0, new_xyz)
-            feature_1,new_xyz = self.tome_further_ds2(feature_1,xyz)
+            feature_1,_,new_xyz,_ = self.tome_further_ds2(feature_1,new_xyz)
 
             feature_1 = feature_1.permute(0, 2, 1)
         elif self.cfg.method == "normal":
