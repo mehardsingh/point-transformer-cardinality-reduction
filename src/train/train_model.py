@@ -9,6 +9,7 @@ import sys
 from modelnet40 import get_dataloaders as get_mn40_dls
 from config import Config as ModelConfig
 import time
+import pandas as pd
 
 sys.path.append("src/models/pct")
 from point_transformer_cls import get_model as get_pct, get_loss as get_pct_loss
@@ -44,16 +45,20 @@ def get_dataloaders(dataset_name, data_dir, num_points, val, num_classes,batch_s
     eval_dl = val_dl if val else test_dl
     return train_dl, eval_dl
 
-def initialize_progress_csv(save_dir):
-    column_names = ["step", "T_Loss", "T_Accuracy", "T_Precision", "T_Recall", "T_F1", "V_Loss", "V_Accuracy", "V_Precision", "V_Recall", "V_F1","Elapsed_time"]
-    with open(os.path.join(save_dir, "progress.csv"), mode="w") as f:
-        f.write(f"{','.join(column_names)}\n")
+# def initialize_progress_csv(save_dir):
+#     column_names = ["step", "T_Loss", "T_Accuracy", "T_Precision", "T_Recall", "T_F1", "V_Loss", "V_Accuracy", "V_Precision", "V_Recall", "V_F1","Elapsed_time"]
+#     with open(os.path.join(save_dir, "progress.csv"), mode="w") as f:
+#         f.write(f"{','.join(column_names)}\n")
 
-def save_progress(save_dir, steps, train_metrics, eval_metrics, model, elapsed_time, save_curr_model):
-    with open(os.path.join(save_dir, "progress.csv"), mode="a") as f:
-        row_metrics = [steps] + train_metrics + eval_metrics
-        row_metrics = [str(i) for i in row_metrics] + [f'{elapsed_time:5.3f}']
-        f.write(f"{','.join(row_metrics)}\n")
+def save_progress(save_dir, progress_dict, steps, train_metrics, eval_metrics, model, elapsed_time, save_curr_model):
+    row_metrics = [steps] + train_metrics + eval_metrics + [f'{elapsed_time:5.3f}']
+
+    for i in range(len(progress_dict.keys())):
+        key = list(progress_dict.keys())[i]
+        progress_dict[key].append(row_metrics[i])
+
+    progress_df = pd.DataFrame(progress_dict)
+    progress_df.to_csv(os.path.join(save_dir, "progress.csv"), index=False)
 
     if save_curr_model:
         torch.save(model.state_dict(), os.path.join(save_dir, f"model.pt"))
@@ -94,16 +99,34 @@ def train(config):
         config['batch_size']
     )
 
-    initialize_progress_csv(config["save_dir"])
+    if config["load"] == "True":
+        model.load_state_dict(torch.load(os.path.join(config["save_dir"], "model.pt")))
+        progress_df = pd.read_csv(os.path.join(config["save_dir"], "progress.csv"))
+        min_index = progress_df["V_Loss"].idxmin()
+        progress_df = progress_df.iloc[:min_index + 1]
+        progress_dict = progress_df.to_dict(orient='list')
+
+        curr_step = progress_dict["step"][-1] + 1
+        best_eval_loss = progress_dict["V_Loss"][-1]
+        start_epoch = min_index + 1
+
+    else:
+        cols = ["step","T_Loss","T_Accuracy","T_Precision","T_Recall","T_F1","V_Loss","V_Accuracy","V_Precision","V_Recall","V_F1","Elapsed_time"]
+        progress_dict = dict()
+        for col in cols:
+            progress_dict[col] = list()
+        curr_step = 1
+        best_eval_loss = 5e5
+        start_epoch = 0
+
+    start_time = time.time()
+
+    # initialize_progress_csv(config["save_dir"])
 
     model.train()
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=config["wd"])
 
-    start_time = time.time()
-    curr_step = 1
-    best_eval_loss = 5e5
-
-    for epoch in range(config["num_epochs"]): 
+    for epoch in range(start_epoch, config["num_epochs"]): 
         pbar = tqdm(train_dl, desc="Epoch {}/{} progress".format(epoch+1, config["num_epochs"]))
         batch_train_metrics = list()
 
@@ -132,10 +155,10 @@ def train(config):
         model.train()
 
         if eval_loss <= best_eval_loss:
-            save_progress(config["save_dir"], curr_step, avg_train_metrics, eval_metrics, model, time.time() - start_time, True)
+            save_progress(config["save_dir"], progress_dict, curr_step, avg_train_metrics, eval_metrics, model, time.time() - start_time, True)
             best_eval_loss = eval_loss
         else:
-            save_progress(config["save_dir"], curr_step, avg_train_metrics, eval_metrics, model, time.time() - start_time, False)
+            save_progress(config["save_dir"], progress_dict, curr_step, avg_train_metrics, eval_metrics, model, time.time() - start_time, False)
 
 def main(args): 
     config = vars(args)
@@ -146,6 +169,7 @@ if __name__ == "__main__":
     warnings.filterwarnings('ignore') 
     
     parser = argparse.ArgumentParser()
+    parser.add_argument("--load",  type=str, default="False")
     parser.add_argument("--model_name",  type=str, default="pt")
     parser.add_argument("--method",  type=str, default="normal")
     parser.add_argument("--dataset_name",  type=str, default="mn40")

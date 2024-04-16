@@ -193,13 +193,13 @@ def get_dataloaders(data_dir, sampled_points=1024, val=False, num_classes=40, ba
         val_size = len(train_ds) - train_size
         train_ds, val_ds = random_split(train_ds, [train_size, val_size])
 
-        train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-        val_dataloader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
-        test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+        train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=10)
+        val_dataloader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=10)
+        test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=10)
 
         return train_dataloader, val_dataloader, test_dataloader
     
     else:
-        train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-        test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+        train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=10)
+        test_dataloader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=10)
         return train_dataloader, None, test_dataloader
