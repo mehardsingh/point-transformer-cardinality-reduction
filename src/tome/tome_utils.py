@@ -83,12 +83,18 @@ def bipartite_soft_matching(
         n, t1, c = src.shape
         unm = src.gather(dim=-2, index=unm_idx.expand(n, t1 - r, c))
         src = src.gather(dim=-2, index=src_idx.expand(n, r, c))
-        dst = dst.scatter_reduce(-2, dst_idx.expand(n, r, c), src, reduce=mode)
+        # dst = dst.scatter_reduce(-2, dst_idx.expand(n, r, c), src, reduce=mode)
+
+        dst_cpu = dst.cpu()
+        dst_idx_cpu = dst_idx.cpu()
+        src_cpu = src.cpu()
+        dst_cpu = dst_cpu.scatter_reduce(-2, dst_idx_cpu.expand(n, r, c), src_cpu, reduce=mode)
+        dst = dst_cpu.to(x.device)
 
         if distill_token:
-            return torch.cat([unm[:, :1], dst[:, :1], unm[:, 1:], dst[:, 1:]], dim=1)
+            return torch.cat([unm[:, :1], dst[:, :1], unm[:, 1:], dst[:, 1:]], dim=1).to(x.device)
         else:
-            return torch.cat([unm, dst], dim=1)
+            return torch.cat([unm, dst], dim=1).to(x.device)
 
     def unmerge(x: torch.Tensor) -> torch.Tensor:
         unm_len = unm_idx.shape[1]

@@ -45,7 +45,7 @@ def index_points(points, idx):
     """
     raw_size = idx.size()
     idx = idx.reshape(raw_size[0], -1)
-    res = torch.gather(points, 1, idx[..., None].expand(-1, -1, points.size(-1)))
+    res = torch.gather(points, 1, idx[..., None].to(points.device).expand(-1, -1, points.size(-1)))
     return res.reshape(*raw_size, -1)
 
 
