@@ -2,17 +2,16 @@
 
 import torch
 import torch.nn as nn
-from fps_knn_pct import FPS_KNN_PCT
 import sys
 import numpy as np
 import math
+import os 
 
-sys.path.append("src/tome")
-from tome import TOME
-import tome
 
-sys.path.append("src/random_subsample")
-from random_subsample import Random_Subsample_Feature
+from src.random_subsample.random_subsample import Random_Subsample_Feature
+from src.models.pct.fps_knn_pct import FPS_KNN_PCT
+from src.tome.tome import TOME
+from src.tome import tome
 
 # default initial hidden dim = 64
 
@@ -82,18 +81,21 @@ def maybe_make_tome_downsample(cfg,n_points ):
     If specified, create a downsampling layer for a model, using Tome.Merge 
     Otherwise, create an identity function, and leave n_points unchanged 
     """
+    eps = 1e-7
+
     # print(f'attempting to init tome with downsampling factor = {cfg.tome_further_ds} and use_xyz = {cfg.tome_further_ds_use_xyz}')
     if (
         (not hasattr(cfg,'tome_further_ds')) 
         or (not hasattr(cfg,'tome_further_ds_use_xyz')) 
         or cfg.tome_further_ds is None
+        or 1.0 - eps <= cfg.tome_further_ds <= 1.0 + eps
         ): 
         return (lambda feature,xyz: (feature,feature,xyz,xyz)), n_points
     else: 
-        assert 0 <= cfg.tome_further_ds <= 1 # , "Futher downsampling value should be in range [0,1)")  
+        assert 0 <= cfg.tome_further_ds <= 1 + eps  # , "Futher downsampling value should be in range [0,1)")  
         assert cfg.method != "random" # "Further downsampling not possible with random subsampling.")
 
-        print(f'initing tome with downsampling factor = {cfg.tome_further_ds} and use_xyz = {cfg.tome_further_ds_use_xyz}')
+        # print(f'initing tome with downsampling factor = {cfg.tome_further_ds} and use_xyz = {cfg.tome_further_ds_use_xyz}')
         out_n_pts = math.ceil(n_points*cfg.tome_further_ds)
         return tome.Merge(out_n_pts, use_xyz=cfg.tome_further_ds_use_xyz), out_n_pts
     

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from tome_utils import bipartite_soft_matching
+from src.tome.tome_utils import bipartite_soft_matching
 
 class Merge(nn.Module):
     def __init__(self, npoint, compress=False, use_xyz=False):

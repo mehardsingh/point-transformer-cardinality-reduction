@@ -1,16 +1,15 @@
 import torch
 import torch.nn as nn
-from transformer import TransformerBlock, TOMETransformerBlock, MyAttention, MyAttention2
-from fps_knn_pt import FPS_KNN_PT
+from src.models.pt.transformer import TransformerBlock, TOMETransformerBlock, MyAttention, MyAttention2
+from src.models.pt.fps_knn_pt import FPS_KNN_PT
 import sys
 import numpy as np
 
-sys.path.append("src/tome")
-from tome import TOME
-import tome
+from src.tome.tome import TOME
+from src.tome import tome
 
 sys.path.append("src/random_subsample")
-from random_subsample import Random_Subsample_XYZ
+from src.random_subsample.random_subsample import Random_Subsample_XYZ
 
 # default initial hidden dim = 32
 
@@ -70,7 +69,7 @@ class Backbone(nn.Module):
                 ):
                 
                 assert( 0 <= cfg.tome_further_ds <= 1, "Futher downsampling value should be in range [0,1)")  
-                print(f'initing tome with downsampling factor = {cfg.tome_further_ds} and use_xyz = {cfg.tome_further_ds_use_xyz}')
+                # print(f'initing tome with downsampling factor = {cfg.tome_further_ds} and use_xyz = {cfg.tome_further_ds_use_xyz}')
                 out_n_pts = num_pts * cfg.tome_further_ds
                 self.tome_further_downsample.append(tome.Merge(out_n_pts, use_xyz=cfg.tome_further_ds_use_xyz))
 
@@ -136,12 +135,10 @@ class PointTransformerCls(nn.Module):
     
     def forward(self, x):
         if self.cfg.method in ["normal", "random"]:
-            points, _ = self.backbone(x)
+            x, _ = self.backbone(x)
         else:
-            points = self.backbone(x)
-
-        res = self.fc2(points.mean(1))
-        return res
+            x = self.backbone(x)
+        return self.fc2(x.mean(1))
 
 def get_model(cfg):
     return PointTransformerCls(cfg)

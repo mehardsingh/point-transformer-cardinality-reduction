@@ -11,17 +11,14 @@ from config import Config as ModelConfig
 import time
 import pandas as pd
 
-sys.path.append("src/models/pct")
-from point_transformer_cls import get_model as get_pct, get_loss as get_pct_loss
+sys.path.append("src")
+sys.path.append(os.curdir)
+print(sys.path)
 
-sys.path.append("src/models/pt")
-from model import get_model as get_pt, get_loss as get_pt_loss
-
-sys.path.append("src/downsamples/fps_knn_pct")
-from fps_knn_pct import FPS_KNN_PCT
-
-sys.path.append("src/tome")
-from tome import TOME
+from src.models.pct.point_transformer_cls import get_model as get_pct, get_loss as get_pct_loss
+from src.models.pt.model import get_model as get_pt, get_loss as get_pt_loss
+from src.models.pct.fps_knn_pct import FPS_KNN_PCT
+from src.tome.tome import TOME
 
 def get_model(model_name, method, num_points, num_class, input_dim, init_hidden_dim, k, device, config={}):
     config = {k:v for k,v in config.items() if k not in ['method','num_points','num_class','input_dim','init_hidden_dim','k']}

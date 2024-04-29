@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from pointnet_util import farthest_point_sample, index_points, square_distance
+from src.models.pct.pointnet_util import farthest_point_sample, index_points, square_distance
 
 class Sample_Group(nn.Module):
     def __init__(self, npoint, nsample):

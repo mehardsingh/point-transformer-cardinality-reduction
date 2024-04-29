@@ -1,5 +1,5 @@
 import torch.nn as nn
-from pointnet_util import PointNetSetAbstraction
+from src.models.pt.pointnet_util import PointNetSetAbstraction
 
 class TransitionDown(nn.Module):
     def __init__(self, k, nneighbor, channels):
