@@ -7,3 +7,4 @@ __pycache__
 src/misc
 .ipynb_checkpoints
 env/
+data/modelnet*
